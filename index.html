@@ -87,6 +87,17 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   padding:10px 12px;margin-top:8px;background:var(--mark-soft);
   border-radius:7px;font-variant-numeric:tabular-nums}
 .cart-sum b{color:var(--mark);font-size:17px}
+.grp-head td{background:var(--mark-soft);font-weight:700;
+  border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.grp-head td:first-child{color:var(--mark)}
+.p-card{background:#fdfcf9;border:1px solid var(--line);border-radius:7px;
+  padding:8px 11px;margin-bottom:6px}
+.p-top{display:flex;justify-content:space-between;align-items:baseline;
+  font-variant-numeric:tabular-nums}
+.p-top b{font-weight:700}
+.p-top span{color:var(--mark);font-weight:700;font-size:14px}
+.p-det{font-size:13px;color:var(--muted);margin-top:2px;line-height:1.5}
+body.admin .p-card{background:#faf3e3}
 
 /* ===== 管理模式：整頁換色（亮色琥珀系）===== */
 body.admin{--paper:#fdf6e8;--card:#fffdf7;--line:#e6d9bd;
@@ -205,6 +216,7 @@ body.admin .adm-banner{display:block}
       <div class="actions">
         <button onclick="saveConfig()">儲存設定</button>
         <button class="btn-line" onclick="adminReload()">重新讀取</button>
+        <button class="btn-line" style="color:var(--warn)" onclick="clearFlavors()">清空所有品項</button>
       </div>
       <div id="cfgMsg" class="msg"></div>
     </section>
@@ -539,6 +551,18 @@ function delFlavor(i){
   say('cfgMsg','已從清單移除，記得按「儲存設定」。','ok');
 }
 
+function clearFlavors(){
+  if(!cfg.flavors.length){say('cfgMsg','目前沒有品項可以清空。','err');return;}
+  const n=cfg.flavors.length;
+  if(orders.length){
+    if(!confirm(`清空全部 ${n} 個口味？\n\n目前已有 ${orders.length} 筆訂單，訂單不會被刪除，但單價會變成 0。建議先匯出 Excel 留底。`))return;
+  }else{
+    if(!confirm(`清空全部 ${n} 個口味？`))return;
+  }
+  cfg.flavors=[];renderFlavors();
+  say('cfgMsg','品項已清空，記得按「儲存設定」才會生效。','ok');
+}
+
 async function saveConfig(){
   cfg.itemName=document.getElementById('cItemName').value;
   cfg.note=document.getElementById('cNote').value;
@@ -585,13 +609,28 @@ function renderAdmin(){
   renderFlavors();
 
   let grand=0;
-  document.getElementById('allBody').innerHTML=orders.map(o=>{
-    const p=priceOf(o.flavor),sub=p*o.qty;grand+=sub;
-    return `<tr><td>${esc(o.name)}</td><td>${esc(o.flavor)}</td><td class="num">${o.qty}</td>
-      <td class="num">${money(p)}</td><td class="num">${money(sub)}</td>
-      <td style="font-size:12px;color:var(--muted)">${fmtTime(o.created)}</td>
-      <td><button class="btn-del" onclick="delOrder('${o.id}')">×</button></td></tr>`;
-  }).join('');
+  const groups={};
+  orders.forEach(o=>{
+    if(!groups[o.name])groups[o.name]=[];
+    groups[o.name].push(o);
+  });
+  let html='';
+  Object.keys(groups).forEach(nm=>{
+    const list=groups[nm];
+    let pq=0,pm=0;
+    list.forEach(o=>{pq+=o.qty;pm+=priceOf(o.flavor)*o.qty;});
+    grand+=pm;
+    html+=`<tr class="grp-head"><td colspan="4">${esc(nm)}</td>
+      <td class="num">${pq} 份</td><td class="num" colspan="2">${money(pm)}</td></tr>`;
+    list.forEach(o=>{
+      const p=priceOf(o.flavor),sub=p*o.qty;
+      html+=`<tr><td></td><td>${esc(o.flavor)}</td><td class="num">${o.qty}</td>
+        <td class="num">${money(p)}</td><td class="num">${money(sub)}</td>
+        <td style="font-size:12px;color:var(--muted)">${fmtTime(o.created)}</td>
+        <td><button class="btn-del" onclick="delOrder('${o.id}')">×</button></td></tr>`;
+    });
+  });
+  document.getElementById('allBody').innerHTML=html;
   document.getElementById('allEmpty').style.display=orders.length?'none':'block';
   document.getElementById('grand').textContent=money(grand);
 
@@ -600,15 +639,27 @@ function renderAdmin(){
     const p=priceOf(o.flavor);
     if(!byFv[o.flavor])byFv[o.flavor]={q:0,m:0};
     byFv[o.flavor].q+=o.qty;byFv[o.flavor].m+=p*o.qty;
-    if(!byPerson[o.name])byPerson[o.name]={q:0,m:0};
+    if(!byPerson[o.name])byPerson[o.name]={q:0,m:0,items:{}};
     byPerson[o.name].q+=o.qty;byPerson[o.name].m+=p*o.qty;
+    byPerson[o.name].items[o.flavor]=(byPerson[o.name].items[o.flavor]||0)+o.qty;
   });
-  const sec=(t,rows)=>rows.length?`<div style="margin-bottom:14px"><label>${t}</label>${rows.join('')}</div>`:'';
+
+  const fvRows=Object.entries(byFv).map(([k,v])=>
+    `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`);
+
+  const pRows=Object.entries(byPerson).map(([k,v])=>{
+    const det=Object.entries(v.items)
+      .map(([f,q])=>`${esc(f)} × ${q}`).join('、');
+    return `<div class="p-card">
+      <div class="p-top"><b>${esc(k)}</b>
+        <span>${v.q} 份　${money(v.m)}</span></div>
+      <div class="p-det">${det}</div>
+    </div>`;
+  });
+
+  const sec=(t,rows)=>rows.length?`<div style="margin-bottom:16px"><label>${t}</label>${rows.join('')}</div>`:'';
   document.getElementById('summary').innerHTML=orders.length?
-    sec('各口味數量（下單用）',Object.entries(byFv).map(([k,v])=>
-      `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))+
-    sec('每人應付金額',Object.entries(byPerson).map(([k,v])=>
-      `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))
+    sec('各口味數量（下單用）',fvRows)+sec('每人明細與應付金額',pRows)
     :'<div class="empty">有訂單後這裡會自動彙總。</div>';
 }
 
@@ -622,10 +673,19 @@ function exportExcel(){
   const rows=[[item+'　訂購明細　'+d.toLocaleDateString('zh-TW')],[],
               ['購買人','口味','數量','單價','小計','登記時間']];
   let g=0,tq=0;
-  orders.forEach(o=>{
-    const p=priceOf(o.flavor),sub=p*o.qty;g+=sub;tq+=o.qty;
-    rows.push([o.name,o.flavor,o.qty,p,sub,fmtTime(o.created)]);
+  const grp={};
+  orders.forEach(o=>{ (grp[o.name]=grp[o.name]||[]).push(o); });
+  Object.keys(grp).forEach(nm=>{
+    let pq=0,pm=0;
+    grp[nm].forEach(o=>{
+      const p=priceOf(o.flavor),sub=p*o.qty;
+      pq+=o.qty;pm+=sub;
+      rows.push([nm,o.flavor,o.qty,p,sub,fmtTime(o.created)]);
+    });
+    rows.push(['',nm+' 小計',pq,'',pm,'']);
+    g+=pm;tq+=pq;
   });
+  rows.push([]);
   rows.push(['','總計',tq,'',g,'']);
   const s1=XLSX.utils.aoa_to_sheet(rows);
   s1['!cols']=[{wch:14},{wch:18},{wch:8},{wch:10},{wch:12},{wch:16}];
@@ -634,14 +694,18 @@ function exportExcel(){
 
   const p2={};
   orders.forEach(o=>{
-    if(!p2[o.name])p2[o.name]={q:0,m:0};
+    if(!p2[o.name])p2[o.name]={q:0,m:0,items:{}};
     p2[o.name].q+=o.qty;p2[o.name].m+=priceOf(o.flavor)*o.qty;
+    p2[o.name].items[o.flavor]=(p2[o.name].items[o.flavor]||0)+o.qty;
   });
-  const r2=[['購買人','總數量','應付金額']];
-  Object.entries(p2).forEach(([k,v])=>r2.push([k,v.q,v.m]));
-  r2.push(['總計',tq,g]);
+  const r2=[['購買人','總數量','應付金額','口味明細']];
+  Object.entries(p2).forEach(([k,v])=>{
+    const det=Object.entries(v.items).map(([f,q])=>f+' × '+q).join('、');
+    r2.push([k,v.q,v.m,det]);
+  });
+  r2.push(['總計',tq,g,'']);
   const s2=XLSX.utils.aoa_to_sheet(r2);
-  s2['!cols']=[{wch:14},{wch:10},{wch:12}];
+  s2['!cols']=[{wch:14},{wch:10},{wch:12},{wch:46}];
   XLSX.utils.book_append_sheet(wb,s2,'每人小計');
 
   const fvSum={};
