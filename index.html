@@ -77,6 +77,16 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .dlg p{margin:0 0 14px;font-size:13px;color:var(--muted)}
 .adm-tag{display:inline-block;background:var(--mark);color:#fff;font-size:11px;
   padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:.08em;vertical-align:middle}
+.cart-list{display:flex;flex-direction:column;gap:6px}
+.cart-row{display:flex;align-items:center;gap:8px;background:#fdfcf9;
+  border:1px solid var(--line);border-radius:7px;padding:7px 10px}
+.cart-row b{flex:1;font-weight:600}
+.cart-row em{font-style:normal;color:var(--muted);font-size:13px;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.cart-sum{display:flex;justify-content:space-between;align-items:baseline;
+  padding:10px 12px;margin-top:8px;background:var(--mark-soft);
+  border-radius:7px;font-variant-numeric:tabular-nums}
+.cart-sum b{color:var(--mark);font-size:17px}
 
 /* ===== 管理模式：整頁換色（亮色琥珀系）===== */
 body.admin{--paper:#fdf6e8;--card:#fffdf7;--line:#e6d9bd;
@@ -122,12 +132,30 @@ body.admin .adm-banner{display:block}
 
     <section>
       <h2>我要登記</h2>
+      <div style="margin-bottom:12px">
+        <label>購買人</label>
+        <input id="oName" placeholder="姓名">
+      </div>
       <div class="row">
-        <div style="flex:2"><label>購買人</label><input id="oName" placeholder="姓名"></div>
         <div style="flex:2"><label>口味</label><select id="oFlavor"></select></div>
         <div style="max-width:90px"><label>數量</label><input id="oQty" type="number" min="1" step="1" value="1"></div>
+        <div style="flex:0 0 auto"><button class="btn-line" id="btnCart" onclick="addToCart()">加入清單</button></div>
       </div>
-      <div class="actions"><button id="btnAdd" onclick="addOrder()">送出登記</button></div>
+
+      <div id="cartBox" style="display:none;margin-top:14px">
+        <label>待送出清單</label>
+        <div id="cartList" class="cart-list"></div>
+        <div class="cart-sum">
+          <span>合計 <b id="cartQty">0</b> 份</span>
+          <b id="cartTotal">$0</b>
+        </div>
+        <div class="actions">
+          <button id="btnSend" onclick="submitCart()">送出訂單</button>
+          <button class="btn-line" onclick="clearCart()">清空清單</button>
+        </div>
+      </div>
+
+      <div id="cartEmpty" class="empty">先選口味和數量，按「加入清單」可以多筆一起送出。</div>
       <div id="msg" class="msg"></div>
     </section>
 
@@ -225,7 +253,7 @@ body.admin .adm-banner{display:block}
 const API_URL = 'https://script.google.com/macros/s/AKfycbztevorsTrHXNrqDVcicsW1idgBdwzzTQMEzEE4XYRhO63kBzjP2g6iNiB65sjvrUwxhw/exec';
 
 let cfg={itemName:'',flavors:[],open:true,note:''};
-let mine=[], orders=[], curName='', PW='', isAdmin=false;
+let mine=[], orders=[], cart=[], curName='', PW='', isAdmin=false;
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>'$'+Number(n||0).toLocaleString('zh-TW');
@@ -270,9 +298,6 @@ async function boot(){
   document.getElementById('loading').style.display='none';
   document.getElementById('userArea').style.display='block';
   renderUser();
-
-  const sp=localStorage.getItem('gb_pw');
-  if(sp){ document.getElementById('pw').value=sp; login(true); }
 }
 
 /* ---------- 密碼視窗 ---------- */
@@ -287,19 +312,17 @@ function closeGate(){
   document.getElementById('gateMsg').className='msg';
 }
 
-async function login(silent){
+async function login(){
   const pw=document.getElementById('pw').value;
-  if(!pw){ if(!silent)say('gateMsg','請輸入密碼。','err'); return; }
+  if(!pw){ say('gateMsg','請輸入密碼。','err'); return; }
   let d;
   try{ d=await api({action:'adminLoad',pw}); }
-  catch(e){ if(!silent)say('gateMsg','連線失敗。','err'); return; }
+  catch(e){ say('gateMsg','連線失敗。','err'); return; }
   if(!d.ok){
-    localStorage.removeItem('gb_pw');
-    if(!silent)say('gateMsg',d.error||'登入失敗。','err');
+    say('gateMsg',d.error||'登入失敗。','err');
     return;
   }
   PW=pw;isAdmin=true;cfg=d.config;orders=d.orders||[];
-  localStorage.setItem('gb_pw',pw);
   closeGate();
   showAdmin();
 }
@@ -318,27 +341,17 @@ function toggleAdmin(){
   const showing=document.getElementById('admArea').style.display!=='none';
   if(showing){
     document.body.classList.remove('admin');
+    PW='';isAdmin=false;
+    document.getElementById('pw').value='';
     document.getElementById('admArea').style.display='none';
     document.getElementById('userArea').style.display='block';
     document.getElementById('pageTitle').textContent='團購登記';
-    document.getElementById('admBtn').textContent='管理畫面';
+    document.getElementById('admBtn').textContent='主辦人管理';
     window.scrollTo(0,0);
     renderUser();
   }else{
     showAdmin();
   }
-}
-
-function logout(){
-  localStorage.removeItem('gb_pw');
-  PW='';isAdmin=false;
-  document.body.classList.remove('admin');
-  document.getElementById('pw').value='';
-  document.getElementById('admArea').style.display='none';
-  document.getElementById('userArea').style.display='block';
-  document.getElementById('pageTitle').textContent='團購登記';
-  document.getElementById('admBtn').textContent='主辦人管理';
-  renderUser();
 }
 
 /* ---------- 一般登記 ---------- */
@@ -355,7 +368,11 @@ function renderUser(){
     ? cfg.flavors.map(f=>`<option value="${esc(f.name)}">${esc(f.name)}（${money(f.price)}）</option>`).join('')
     : '<option value="">（主辦人尚未設定口味）</option>';
   if(cfg.flavors.some(f=>f.name===cur))sel.value=cur;
-  document.getElementById('btnAdd').disabled=!cfg.open||!cfg.flavors.length;
+  const dis=!cfg.open||!cfg.flavors.length;
+  document.getElementById('btnCart').disabled=dis;
+  document.getElementById('oFlavor').disabled=dis;
+  document.getElementById('oQty').disabled=dis;
+  renderCart();
 
   let total=0;
   document.getElementById('mineBody').innerHTML=mine.map(o=>{
@@ -374,25 +391,85 @@ function renderUser(){
   document.getElementById('myTotal').textContent=money(total);
 }
 
-async function addOrder(){
-  const name=document.getElementById('oName').value.trim();
+function renderCart(){
+  const box=document.getElementById('cartBox');
+  const emp=document.getElementById('cartEmpty');
+  if(!cart.length){
+    box.style.display='none';
+    emp.style.display='block';
+    emp.textContent=cfg.open
+      ?'先選口味和數量，按「加入清單」可以多筆一起送出。'
+      :'本次團購已結單。';
+    return;
+  }
+  box.style.display='block';
+  emp.style.display='none';
+  let q=0,m=0;
+  document.getElementById('cartList').innerHTML=cart.map((c,i)=>{
+    const p=priceOf(c.flavor);q+=c.qty;m+=p*c.qty;
+    return `<div class="cart-row">
+      <b>${esc(c.flavor)}</b>
+      <em>${money(p)} × ${c.qty}　=　${money(p*c.qty)}</em>
+      <button class="btn-del" onclick="removeCart(${i})">移除</button>
+    </div>`;
+  }).join('');
+  document.getElementById('cartQty').textContent=q;
+  document.getElementById('cartTotal').textContent=money(m);
+}
+
+function addToCart(){
   const flavor=document.getElementById('oFlavor').value;
   const qty=Math.floor(Number(document.getElementById('oQty').value)||0);
-  if(!name){say('msg','請輸入購買人姓名。','err');return;}
   if(!flavor){say('msg','請選擇口味。','err');return;}
   if(qty<1){say('msg','數量至少 1。','err');return;}
+  const hit=cart.find(c=>c.flavor===flavor);
+  if(hit){
+    hit.qty+=qty;
+    say('msg',`「${flavor}」已合併，現在共 ${hit.qty} 份。`,'ok');
+  }else{
+    cart.push({flavor,qty});
+    say('msg',`已加入「${flavor}」× ${qty}`,'ok');
+  }
+  document.getElementById('oQty').value=1;
+  renderCart();
+}
 
-  const btn=document.getElementById('btnAdd');
+function removeCart(i){
+  cart.splice(i,1);
+  renderCart();
+}
+
+function clearCart(){
+  if(!cart.length)return;
+  if(!confirm('清空待送出清單？（還沒送出的都會消失）'))return;
+  cart=[];renderCart();
+}
+
+async function submitCart(){
+  const name=document.getElementById('oName').value.trim();
+  if(!name){say('msg','請輸入購買人姓名。','err');return;}
+  if(!cart.length){say('msg','清單是空的。','err');return;}
+
+  const btn=document.getElementById('btnSend');
   btn.disabled=true;btn.textContent='送出中…';
-  const d=await api({action:'add',name,flavor,qty});
-  btn.disabled=false;btn.textContent='送出登記';
+  let d;
+  try{
+    d=await api({action:'addBatch',name,items:cart});
+  }catch(e){
+    btn.disabled=false;btn.textContent='送出訂單';
+    say('msg','連線失敗，訂單沒有送出，請再試一次。','err');
+    return;
+  }
+  btn.disabled=false;btn.textContent='送出訂單';
 
-  if(!d.ok){say('msg',d.error||'送出失敗。','err');return;}
+  if(!d.ok){say('msg',d.error||'送出失敗，訂單沒有寫入。','err');return;}
+  const n=d.added||cart.length;
+  cart=[];
   curName=name;mine=d.mine||[];
   localStorage.setItem('gb_name',name);
   document.getElementById('qName').value=name;
-  document.getElementById('oQty').value=1;
-  say('msg','已登記：'+flavor+' × '+qty,'ok');
+  say('msg',`已送出 ${n} 筆訂單。`,'ok');
+  renderCart();
   renderUser();
 }
 
@@ -531,10 +608,8 @@ function renderAdmin(){
     sec('各口味數量（下單用）',Object.entries(byFv).map(([k,v])=>
       `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))+
     sec('每人應付金額',Object.entries(byPerson).map(([k,v])=>
-      `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))+
-    `<div style="margin-top:10px"><button class="btn-line" onclick="logout()">登出管理</button></div>`
-    :'<div class="empty">有訂單後這裡會自動彙總。</div>'+
-     `<div style="margin-top:10px"><button class="btn-line" onclick="logout()">登出管理</button></div>`;
+      `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))
+    :'<div class="empty">有訂單後這裡會自動彙總。</div>';
 }
 
 function exportExcel(){
@@ -586,7 +661,7 @@ function exportExcel(){
 }
 
 /* ---------- 鍵盤 ---------- */
-document.getElementById('oQty').addEventListener('keydown',e=>{if(e.key==='Enter')addOrder();});
+document.getElementById('oQty').addEventListener('keydown',e=>{if(e.key==='Enter')addToCart();});
 document.getElementById('qName').addEventListener('keydown',e=>{if(e.key==='Enter')loadMine();});
 document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
 document.getElementById('fvName').addEventListener('keydown',e=>{
