@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>團購登記</title>
-<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
 :root{--ink:#1c1a17;--paper:#fbf9f4;--card:#fff;--line:#e2ddd2;
   --mark:#2f6f5e;--mark-soft:#e8f2ee;--warn:#a8442a;--muted:#7d766a}
@@ -115,6 +116,9 @@ body.admin .status-box{background:#faf3e3}
 .danger-row b{display:block;font-size:15px;font-weight:700}
 .danger-row span{display:block;font-size:13px;color:var(--muted);line-height:1.5;margin-top:1px}
 .danger-row button{white-space:nowrap;padding:9px 15px}
+.shot-head{display:flex;align-items:center;justify-content:space-between;
+  gap:10px;margin-bottom:5px}
+.shot-btn{padding:5px 12px;font-size:13px;flex:0 0 auto}
 
 /* ===== 管理模式：整頁換色（亮色琥珀系）===== */
 body.admin{--paper:#fdf6e8;--card:#fffdf7;--line:#e6d9bd;
@@ -735,8 +739,123 @@ function renderAdmin(){
 
   const sec=(t,rows)=>rows.length?`<div style="margin-bottom:16px"><label>${t}</label>${rows.join('')}</div>`:'';
   document.getElementById('summary').innerHTML=orders.length?
-    sec('各口味數量（下單用）',fvRows)+sec('每人明細與應付金額',pRows)
+    sec('各口味數量（下單用）',fvRows)+
+    `<div style="margin-bottom:8px">
+       <div class="shot-head">
+         <label style="margin:0">每人明細與應付金額</label>
+         <button class="btn-line shot-btn" onclick="shotSummary()">儲存照片</button>
+       </div>
+       <div>${pRows.join('')}</div>
+     </div>`
     :'<div class="empty">有訂單後這裡會自動彙總。</div>';
+}
+
+/* ---------- Excel 樣式小工具 ---------- */
+const XS={
+  title:{font:{bold:true,sz:14},alignment:{horizontal:'left'}},
+  head:{font:{bold:true,color:{rgb:'FFFFFF'}},
+        fill:{fgColor:{rgb:'2F6F5E'}},
+        alignment:{horizontal:'center',vertical:'center'},
+        border:{bottom:{style:'thin',color:{rgb:'CCCCCC'}}}},
+  sub:{font:{bold:true,underline:true},
+       border:{top:{style:'thin',color:{rgb:'999999'}},
+               bottom:{style:'double',color:{rgb:'666666'}}}},
+  grand:{font:{bold:true,sz:12},
+         fill:{fgColor:{rgb:'E8F2EE'}},
+         border:{top:{style:'medium',color:{rgb:'2F6F5E'}}}},
+  money:{numFmt:'$#,##0'},
+  moneyB:{font:{bold:true,underline:true},numFmt:'$#,##0',
+          border:{top:{style:'thin',color:{rgb:'999999'}},
+                  bottom:{style:'double',color:{rgb:'666666'}}}},
+  moneyG:{font:{bold:true,sz:12},numFmt:'$#,##0',
+          fill:{fgColor:{rgb:'E8F2EE'}},
+          border:{top:{style:'medium',color:{rgb:'2F6F5E'}}}}
+};
+function mergeStyle(base,add){
+  const out={};
+  Object.keys(base||{}).forEach(k=>{
+    const v=base[k];
+    out[k]=(v&&typeof v==='object')?JSON.parse(JSON.stringify(v)):v;
+  });
+  Object.keys(add||{}).forEach(k=>{
+    const v=add[k];
+    out[k]=(v&&typeof v==='object')?JSON.parse(JSON.stringify(v)):v;
+  });
+  return out;
+}
+function styleRow(sh,r,ncol,st){
+  for(let c=0;c<ncol;c++){
+    const ref=XLSX.utils.encode_cell({r,c});
+    if(!sh[ref])sh[ref]={t:'s',v:''};
+    sh[ref].s=mergeStyle(sh[ref].s,st);
+  }
+}
+function styleCell(sh,r,c,st){
+  const ref=XLSX.utils.encode_cell({r,c});
+  if(!sh[ref])return;
+  sh[ref].s=mergeStyle(sh[ref].s,st);
+}
+
+async function shotSummary(){
+  if(!orders.length){say('cfgMsg','沒有訂單可以存圖。','err');return;}
+  if(typeof html2canvas==='undefined'){
+    say('cfgMsg','截圖元件還沒載入完成，請稍等幾秒再試。','err');return;
+  }
+
+  // 用固定色值另建一份乾淨版面，避免 CSS 變數造成截圖顏色錯誤
+  const byPerson={};
+  orders.forEach(o=>{
+    const p=priceOf(o.flavor);
+    if(!byPerson[o.name])byPerson[o.name]={q:0,m:0,items:{}};
+    byPerson[o.name].q+=o.qty;byPerson[o.name].m+=p*o.qty;
+    byPerson[o.name].items[o.flavor]=(byPerson[o.name].items[o.flavor]||0)+o.qty;
+  });
+
+  let tq=0,tm=0;
+  const cards=Object.entries(byPerson).map(([k,v])=>{
+    tq+=v.q;tm+=v.m;
+    const det=Object.entries(v.items).map(([f,q])=>`${esc(f)} × ${q}`).join('、');
+    return `<div style="background:#fdfcf9;border:1px solid #e2ddd2;border-radius:7px;
+      padding:9px 12px;margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-weight:700;font-size:16px;color:#1c1a17">${esc(k)}</span>
+        <span style="font-weight:700;font-size:15px;color:#2f6f5e;white-space:nowrap">
+          ${v.q} 份　${money(v.m)}</span>
+      </div>
+      <div style="font-size:13px;color:#7d766a;margin-top:2px;line-height:1.5">${det}</div>
+    </div>`;
+  }).join('');
+
+  const stage=document.createElement('div');
+  stage.style.cssText='position:fixed;left:-9999px;top:0;width:520px;background:#fff;'+
+    'padding:20px;font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;';
+  stage.innerHTML=
+    `<div style="font-size:15px;font-weight:700;letter-spacing:.1em;color:#2f6f5e;
+       padding-bottom:8px;border-bottom:1px solid #e2ddd2;margin-bottom:12px">
+       每人明細與應付金額</div>
+     ${cards}
+     <div style="display:flex;justify-content:space-between;align-items:baseline;
+       background:#1c1a17;color:#fbf9f4;border-radius:7px;padding:11px 13px;margin-top:10px">
+       <span style="font-size:14px">合計 ${Object.keys(byPerson).length} 人・${tq} 份</span>
+       <span style="font-size:19px;font-weight:700">${money(tm)}</span>
+     </div>`;
+  document.body.appendChild(stage);
+
+  try{
+    const canvas=await html2canvas(stage,{scale:2,backgroundColor:'#ffffff',logging:false});
+    const item=(cfg.itemName||'團購').trim();
+    const d=new Date();
+    const ds=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+    const url=canvas.toDataURL('image/png');
+    const a=document.createElement('a');
+    a.href=url;a.download=`${item}_每人明細_${ds}.png`;
+    document.body.appendChild(a);a.click();a.remove();
+    say('cfgMsg','已儲存照片。手機若沒看到，請檢查「下載」資料夾。','ok');
+  }catch(e){
+    say('cfgMsg','截圖失敗：'+e,'err');
+  }finally{
+    stage.remove();
+  }
 }
 
 function exportExcel(){
@@ -746,8 +865,10 @@ function exportExcel(){
   const d=new Date();
   const ds=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 
+  /* ===== 表1：訂購明細（依人分組，小計粗體加底線）===== */
   const rows=[[item+'　訂購明細　'+d.toLocaleDateString('zh-TW')],[],
               ['購買人','口味','數量','單價','小計','登記時間']];
+  const subRows=[];
   let g=0,tq=0;
   const grp={};
   orders.forEach(o=>{ (grp[o.name]=grp[o.name]||[]).push(o); });
@@ -759,15 +880,32 @@ function exportExcel(){
       rows.push([nm,o.flavor,o.qty,p,sub,fmtTime(o.created)]);
     });
     rows.push(['',nm+' 小計',pq,'',pm,'']);
+    subRows.push(rows.length-1);
     g+=pm;tq+=pq;
   });
   rows.push([]);
   rows.push(['','總計',tq,'',g,'']);
+  const grandRow=rows.length-1;
+
   const s1=XLSX.utils.aoa_to_sheet(rows);
-  s1['!cols']=[{wch:14},{wch:18},{wch:8},{wch:10},{wch:12},{wch:16}];
+  s1['!cols']=[{wch:14},{wch:18},{wch:8},{wch:10},{wch:12},{wch:17}];
   s1['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
+  s1['!freeze']={xSplit:0,ySplit:3};
+  styleRow(s1,0,6,XS.title);
+  styleRow(s1,2,6,XS.head);
+  for(let r=3;r<rows.length;r++){
+    styleCell(s1,r,3,XS.money);
+    styleCell(s1,r,4,XS.money);
+  }
+  subRows.forEach(r=>{
+    styleRow(s1,r,6,XS.sub);
+    styleCell(s1,r,4,XS.moneyB);
+  });
+  styleRow(s1,grandRow,6,XS.grand);
+  styleCell(s1,grandRow,4,XS.moneyG);
   XLSX.utils.book_append_sheet(wb,s1,'訂購明細');
 
+  /* ===== 表2：每人小計 ===== */
   const p2={};
   orders.forEach(o=>{
     if(!p2[o.name])p2[o.name]={q:0,m:0,items:{}};
@@ -781,9 +919,15 @@ function exportExcel(){
   });
   r2.push(['總計',tq,g,'']);
   const s2=XLSX.utils.aoa_to_sheet(r2);
-  s2['!cols']=[{wch:14},{wch:10},{wch:12},{wch:46}];
+  s2['!cols']=[{wch:14},{wch:10},{wch:13},{wch:46}];
+  s2['!freeze']={xSplit:0,ySplit:1};
+  styleRow(s2,0,4,XS.head);
+  for(let r=1;r<r2.length;r++)styleCell(s2,r,2,XS.money);
+  styleRow(s2,r2.length-1,4,XS.grand);
+  styleCell(s2,r2.length-1,2,XS.moneyG);
   XLSX.utils.book_append_sheet(wb,s2,'每人小計');
 
+  /* ===== 表3：口味統計 ===== */
   const fvSum={};
   orders.forEach(o=>{fvSum[o.flavor]=(fvSum[o.flavor]||0)+o.qty;});
   const r3=[['口味','單價','數量','金額']];
@@ -794,7 +938,15 @@ function exportExcel(){
   Object.entries(fvSum).forEach(([k,q])=>r3.push([k+'（已移除）',0,q,0]));
   r3.push(['總計','',tq,g]);
   const s3=XLSX.utils.aoa_to_sheet(r3);
-  s3['!cols']=[{wch:20},{wch:10},{wch:8},{wch:12}];
+  s3['!cols']=[{wch:20},{wch:10},{wch:8},{wch:13}];
+  s3['!freeze']={xSplit:0,ySplit:1};
+  styleRow(s3,0,4,XS.head);
+  for(let r=1;r<r3.length;r++){
+    styleCell(s3,r,1,XS.money);
+    styleCell(s3,r,3,XS.money);
+  }
+  styleRow(s3,r3.length-1,4,XS.grand);
+  styleCell(s3,r3.length-1,3,XS.moneyG);
   XLSX.utils.book_append_sheet(wb,s3,'口味統計');
 
   XLSX.writeFile(wb,`${item}_團購統計_${ds}.xlsx`);
