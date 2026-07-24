@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>團購統計</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+<style>
+:root{
+  --ink:#1c1a17;--paper:#fbf9f4;--card:#ffffff;--line:#e2ddd2;
+  --mark:#2f6f5e;--mark-soft:#e8f2ee;--warn:#a8442a;--muted:#7d766a;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;padding:0 0 60px;background:var(--paper);color:var(--ink);
+  font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;font-size:15px;line-height:1.6}
+header{background:var(--ink);color:var(--paper);padding:18px 16px 16px}
+header h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.06em}
+.wrap{max-width:820px;margin:0 auto;padding:0 14px}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:16px;padding:14px}
+h2{margin:0 0 12px;font-size:14px;font-weight:700;letter-spacing:.12em;color:var(--mark);
+  display:flex;align-items:center;gap:8px}
+h2::after{content:"";flex:1;height:1px;background:var(--line)}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600}
+input,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
+  font-size:15px;font-family:inherit;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:2px solid var(--mark);outline-offset:-1px;border-color:var(--mark)}
+input[type=number]{font-variant-numeric:tabular-nums}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.row>div{flex:1;min-width:110px}
+button{font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;border:none;
+  border-radius:7px;padding:10px 16px;background:var(--mark);color:#fff}
+button:hover{filter:brightness(1.08)}
+button:active{transform:translateY(1px)}
+.btn-line{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn-del{background:none;color:var(--warn);padding:4px 8px;font-size:13px}
+.actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:11px;color:var(--muted);letter-spacing:.08em;font-weight:700}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.empty{color:var(--muted);font-size:14px;padding:14px 0;text-align:center}
+.fv-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.fv-row{display:flex;align-items:center;gap:8px;background:#fdfcf9;border:1px solid var(--line);
+  border-radius:7px;padding:7px 10px}
+.fv-row b{flex:1;font-weight:600}
+.total{display:flex;justify-content:space-between;align-items:baseline;padding:12px;
+  background:var(--ink);color:var(--paper);border-radius:8px;margin-top:12px}
+.total b{font-size:22px;font-variant-numeric:tabular-nums}
+.sum-row{display:flex;justify-content:space-between;padding:6px 0;
+  border-bottom:1px dashed var(--line);font-variant-numeric:tabular-nums}
+.sum-row:last-child{border:none}
+.hd{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}
+@media(max-width:520px){
+  .row>div{min-width:calc(50% - 4px)}
+  th,td{padding:7px 4px;font-size:13px}
+}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>團購統計</h1>
+</div></header>
+
+<div class="wrap">
+
+<section>
+  <h2>1・品項與口味</h2>
+  <div class="hd">
+    <label>品項名稱</label>
+    <input id="itemName" oninput="saveName()">
+  </div>
+  <div id="fvList" class="fv-list"></div>
+  <div class="row">
+    <div style="flex:2"><label>新增口味</label><input id="fvName"></div>
+    <div style="max-width:110px"><label>單價</label><input id="fvPrice" type="number" min="0" step="1" placeholder="0"></div>
+    <div style="max-width:90px;flex:0 0 auto"><button onclick="addFlavor()">新增</button></div>
+  </div>
+</section>
+
+<section>
+  <h2>2・登打訂購</h2>
+  <div class="row">
+    <div style="flex:2"><label>購買人</label><input id="oName" placeholder="姓名"></div>
+    <div style="flex:2"><label>口味</label><select id="oFlavor"></select></div>
+    <div style="max-width:90px"><label>數量</label><input id="oQty" type="number" min="1" step="1" value="1"></div>
+  </div>
+  <div class="actions"><button onclick="addOrder()">加入訂單</button></div>
+</section>
+
+<section>
+  <h2>3・訂單明細</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>購買人</th><th>口味</th><th class="num">數量</th>
+        <th class="num">單價</th><th class="num">小計</th><th></th></tr></thead>
+      <tbody id="orderBody"></tbody>
+    </table>
+  </div>
+  <div id="orderEmpty" class="empty">還沒有訂單，從上方登打第一筆。</div>
+  <div class="total"><span>訂單總金額</span><b id="grand">$0</b></div>
+</section>
+
+<section>
+  <h2>4・彙總與匯出</h2>
+  <div id="summary"></div>
+  <div class="actions">
+    <button onclick="exportExcel()">匯出 Excel</button>
+    <button class="btn-line" onclick="clearAll()">清除全部資料</button>
+  </div>
+</section>
+
+</div>
+
+<script>
+const KEY='groupbuy_single_v1';
+let db={name:'',flavors:[],orders:[]};
+
+function load(){try{const r=localStorage.getItem(KEY);if(r)db=JSON.parse(r);}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}}
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'$'+Number(n||0).toLocaleString('zh-TW');
+
+
+function saveName(){db.name=document.getElementById('itemName').value;save();}
+
+function addFlavor(){
+  const n=document.getElementById('fvName').value.trim();
+  const p=Number(document.getElementById('fvPrice').value)||0;
+  if(!n){alert('請輸入口味名稱');return;}
+  if(db.flavors.some(f=>f.name===n)){alert('這個口味已經建立過了');return;}
+  db.flavors.push({id:uid(),name:n,price:p});
+  document.getElementById('fvName').value='';
+  document.getElementById('fvPrice').value='';
+  save();render();
+  document.getElementById('fvName').focus();
+}
+
+function editPrice(id,v){
+  const f=db.flavors.find(x=>x.id===id);
+  f.price=Number(v)||0;save();render();
+}
+
+function delFlavor(id){
+  const f=db.flavors.find(x=>x.id===id);
+  const used=db.orders.filter(o=>o.fvId===id).length;
+  if(!confirm(`刪除口味「${f.name}」${used?`，並移除相關 ${used} 筆訂單？`:'？'}`))return;
+  db.flavors=db.flavors.filter(x=>x.id!==id);
+  db.orders=db.orders.filter(o=>o.fvId!==id);
+  save();render();
+}
+
+function addOrder(){
+  const name=document.getElementById('oName').value.trim();
+  const fvId=document.getElementById('oFlavor').value;
+  const qty=Math.floor(Number(document.getElementById('oQty').value)||0);
+  if(!name){alert('請輸入購買人姓名');return;}
+  if(!fvId){alert('請先建立口味');return;}
+  if(qty<1){alert('數量至少 1');return;}
+  db.orders.push({id:uid(),name,fvId,qty});
+  document.getElementById('oQty').value=1;
+  document.getElementById('oName').value='';
+  save();render();
+  document.getElementById('oName').focus();
+}
+
+function delOrder(id){db.orders=db.orders.filter(o=>o.id!==id);save();render();}
+
+function clearAll(){
+  if(!confirm('確定清除品項、口味與全部訂單？此動作無法復原。'))return;
+  db={name:'',flavors:[],orders:[]};save();render();
+}
+
+function render(){
+  document.getElementById('itemName').value=db.name||'';
+
+  document.getElementById('fvList').innerHTML=db.flavors.length?db.flavors.map(f=>`
+    <div class="fv-row">
+      <b>${esc(f.name)}</b>
+      <input type="number" min="0" step="1" value="${f.price}" style="width:88px;padding:5px 8px"
+        onchange="editPrice('${f.id}',this.value)">
+      <span style="color:var(--muted);font-size:13px">元</span>
+      <button class="btn-del" onclick="delFlavor('${f.id}')">刪除</button>
+    </div>`).join(''):'<div class="empty">先新增今天開放的口味與各自單價。</div>';
+
+  const cur=document.getElementById('oFlavor').value;
+  document.getElementById('oFlavor').innerHTML=
+    db.flavors.map(f=>`<option value="${f.id}">${esc(f.name)}（${money(f.price)}）</option>`).join('')
+    ||'<option value="">（尚無口味）</option>';
+  if(db.flavors.some(f=>f.id===cur))document.getElementById('oFlavor').value=cur;
+
+  let grand=0;
+  document.getElementById('orderBody').innerHTML=db.orders.map(o=>{
+    const f=db.flavors.find(x=>x.id===o.fvId)||{name:'?',price:0};
+    const sub=f.price*o.qty;grand+=sub;
+    return `<tr><td>${esc(o.name)}</td><td>${esc(f.name)}</td><td class="num">${o.qty}</td>
+      <td class="num">${money(f.price)}</td><td class="num">${money(sub)}</td>
+      <td><button class="btn-del" onclick="delOrder('${o.id}')">×</button></td></tr>`;
+  }).join('');
+  document.getElementById('orderEmpty').style.display=db.orders.length?'none':'block';
+  document.getElementById('grand').textContent=money(grand);
+
+  const byFv={},byPerson={};
+  db.orders.forEach(o=>{
+    const f=db.flavors.find(x=>x.id===o.fvId)||{name:'?',price:0};
+    if(!byFv[f.name])byFv[f.name]={q:0,m:0};
+    byFv[f.name].q+=o.qty;byFv[f.name].m+=f.price*o.qty;
+    if(!byPerson[o.name])byPerson[o.name]={q:0,m:0};
+    byPerson[o.name].q+=o.qty;byPerson[o.name].m+=f.price*o.qty;
+  });
+  const sec=(t,rows)=>rows.length?`<div style="margin-bottom:14px"><label>${t}</label>${rows.join('')}</div>`:'';
+  document.getElementById('summary').innerHTML=db.orders.length?
+    sec('各口味數量（下單用）',Object.entries(byFv).map(([k,v])=>
+      `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))+
+    sec('每人應付金額',Object.entries(byPerson).map(([k,v])=>
+      `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))
+    :'<div class="empty">有訂單後這裡會自動彙總。</div>';
+}
+
+function exportExcel(){
+  if(!db.orders.length){alert('沒有訂單可以匯出');return;}
+  const item=(db.name||'團購品項').trim();
+  const wb=XLSX.utils.book_new();
+  const d=new Date();
+  const ds=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+
+  const rows=[[item+'　訂購明細　'+d.toLocaleDateString('zh-TW')],[],
+              ['購買人','口味','數量','單價','小計']];
+  let g=0,tq=0;
+  db.orders.forEach(o=>{
+    const f=db.flavors.find(x=>x.id===o.fvId)||{name:'?',price:0};
+    const sub=f.price*o.qty;g+=sub;tq+=o.qty;
+    rows.push([o.name,f.name,o.qty,f.price,sub]);
+  });
+  rows.push(['','總計',tq,'',g]);
+  const s1=XLSX.utils.aoa_to_sheet(rows);
+  s1['!cols']=[{wch:14},{wch:18},{wch:8},{wch:10},{wch:12}];
+  s1['!merges']=[{s:{r:0,c:0},e:{r:0,c:4}}];
+  XLSX.utils.book_append_sheet(wb,s1,'訂購明細');
+
+  const p={};
+  db.orders.forEach(o=>{
+    const f=db.flavors.find(x=>x.id===o.fvId)||{price:0};
+    if(!p[o.name])p[o.name]={q:0,m:0};
+    p[o.name].q+=o.qty;p[o.name].m+=f.price*o.qty;
+  });
+  const r2=[['購買人','總數量','應付金額']];
+  Object.entries(p).forEach(([k,v])=>r2.push([k,v.q,v.m]));
+  r2.push(['總計',tq,g]);
+  const s2=XLSX.utils.aoa_to_sheet(r2);
+  s2['!cols']=[{wch:14},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,s2,'每人小計');
+
+  const fvSum={};
+  db.orders.forEach(o=>{
+    const f=db.flavors.find(x=>x.id===o.fvId)||{name:'?',price:0};
+    fvSum[f.name]=(fvSum[f.name]||0)+o.qty;
+  });
+  const r3=[['口味','單價','數量','金額']];
+  db.flavors.forEach(f=>{
+    const q=fvSum[f.name];
+    if(q)r3.push([f.name,f.price,q,f.price*q]);
+  });
+  r3.push(['總計','',tq,g]);
+  const s3=XLSX.utils.aoa_to_sheet(r3);
+  s3['!cols']=[{wch:18},{wch:10},{wch:8},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,s3,'口味統計');
+
+  XLSX.writeFile(wb,`${item}_團購統計_${ds}.xlsx`);
+}
+
+document.getElementById('fvName').addEventListener('keydown',e=>{
+  if(e.key==='Enter')document.getElementById('fvPrice').focus();});
+document.getElementById('fvPrice').addEventListener('keydown',e=>{if(e.key==='Enter')addFlavor();});
+['oName','oQty'].forEach(id=>document.getElementById(id)
+  .addEventListener('keydown',e=>{if(e.key==='Enter')addOrder();}));
+
+load();render();
+</script>
+</body>
+</html>
