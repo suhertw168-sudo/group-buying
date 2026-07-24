@@ -3,39 +3,45 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>團購統計</title>
+<title>團購登記</title>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
 <style>
-:root{
-  --ink:#1c1a17;--paper:#fbf9f4;--card:#ffffff;--line:#e2ddd2;
-  --mark:#2f6f5e;--mark-soft:#e8f2ee;--warn:#a8442a;--muted:#7d766a;
-}
+:root{--ink:#1c1a17;--paper:#fbf9f4;--card:#fff;--line:#e2ddd2;
+  --mark:#2f6f5e;--mark-soft:#e8f2ee;--warn:#a8442a;--muted:#7d766a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;padding:0 0 60px;background:var(--paper);color:var(--ink);
   font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;font-size:15px;line-height:1.6}
-header{background:var(--ink);color:var(--paper);padding:18px 16px 16px}
-header h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.06em}
-.wrap{max-width:820px;margin:0 auto;padding:0 14px}
+header{background:var(--ink);color:var(--paper);padding:16px}
+.hbar{max-width:860px;margin:0 auto;padding:0 14px;display:flex;align-items:center;gap:12px}
+.hbar h1{margin:0;font-size:20px;font-weight:700;letter-spacing:.06em}
+.hbar .sub{margin-top:2px;font-size:13px;color:#b8b1a4}
+.hbar .grow{flex:1}
+.hbtn{background:rgba(255,255,255,.14);color:var(--paper);border:1px solid rgba(255,255,255,.28);
+  border-radius:7px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.hbtn:hover{background:rgba(255,255,255,.24)}
+.wrap{max-width:860px;margin:0 auto;padding:0 14px}
 section{background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:16px;padding:14px}
 h2{margin:0 0 12px;font-size:14px;font-weight:700;letter-spacing:.12em;color:var(--mark);
   display:flex;align-items:center;gap:8px}
 h2::after{content:"";flex:1;height:1px;background:var(--line)}
 label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600}
-input,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
+input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
   font-size:15px;font-family:inherit;background:#fff;color:var(--ink)}
-input:focus,select:focus{outline:2px solid var(--mark);outline-offset:-1px;border-color:var(--mark)}
+textarea{min-height:60px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--mark);outline-offset:-1px;border-color:var(--mark)}
 input[type=number]{font-variant-numeric:tabular-nums}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
 .row>div{flex:1;min-width:110px}
 button{font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;border:none;
   border-radius:7px;padding:10px 16px;background:var(--mark);color:#fff}
-button:hover{filter:brightness(1.08)}
-button:active{transform:translateY(1px)}
+button:hover:not(:disabled){filter:brightness(1.08)}
+button:disabled{opacity:.5;cursor:default}
 .btn-line{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn-warn{background:var(--warn)}
 .btn-del{background:none;color:var(--warn);padding:4px 8px;font-size:13px}
 .actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
 table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+th,td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--line)}
 th{font-size:11px;color:var(--muted);letter-spacing:.08em;font-weight:700}
 td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -46,237 +52,528 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .fv-row b{flex:1;font-weight:600}
 .total{display:flex;justify-content:space-between;align-items:baseline;padding:12px;
   background:var(--ink);color:var(--paper);border-radius:8px;margin-top:12px}
-.total b{font-size:22px;font-variant-numeric:tabular-nums}
+.total b{font-size:20px;font-variant-numeric:tabular-nums}
 .sum-row{display:flex;justify-content:space-between;padding:6px 0;
   border-bottom:1px dashed var(--line);font-variant-numeric:tabular-nums}
 .sum-row:last-child{border:none}
 .hd{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:12px}
+.msg{padding:10px 12px;border-radius:7px;margin-top:10px;font-size:14px;display:none}
+.msg.ok{display:block;background:var(--mark-soft);color:var(--mark)}
+.msg.err{display:block;background:#f7e9e4;color:var(--warn)}
+.note{background:#fdfcf9;border-left:3px solid var(--mark);padding:8px 12px;
+  margin-top:16px;font-size:14px;white-space:pre-wrap;border-radius:0 7px 7px 0}
+.closed{background:#f7e9e4;color:var(--warn);padding:12px;border-radius:8px;
+  font-weight:600;text-align:center;margin-top:16px}
+.load{text-align:center;padding:40px 0;color:var(--muted)}
+.switch{display:flex;align-items:center;gap:10px;padding:10px;background:#fdfcf9;
+  border:1px solid var(--line);border-radius:7px}
+.switch input{width:auto}
+.switch span{font-weight:600;font-size:14px}
+.mask{position:fixed;inset:0;background:rgba(28,26,23,.55);display:none;
+  align-items:center;justify-content:center;padding:20px;z-index:50}
+.mask.on{display:flex}
+.dlg{background:var(--card);border-radius:12px;padding:20px;width:100%;max-width:340px}
+.dlg h3{margin:0 0 4px;font-size:17px}
+.dlg p{margin:0 0 14px;font-size:13px;color:var(--muted)}
+.adm-tag{display:inline-block;background:var(--mark);color:#fff;font-size:11px;
+  padding:2px 8px;border-radius:20px;font-weight:700;letter-spacing:.08em;vertical-align:middle}
 @media(max-width:520px){
+  .hbar h1{font-size:18px}
+  .hbtn{padding:7px 11px;font-size:12px}
   .row>div{min-width:calc(50% - 4px)}
   th,td{padding:7px 4px;font-size:13px}
 }
 </style>
 </head>
 <body>
-<header><div class="wrap">
-  <h1>團購統計</h1>
+
+<header><div class="hbar">
+  <div>
+    <h1 id="pageTitle">團購登記</h1>
+    <div class="sub" id="itemLabel">載入中…</div>
+  </div>
+  <div class="grow"></div>
+  <button class="hbtn" id="admBtn" onclick="openGate()">主辦人管理</button>
 </div></header>
 
 <div class="wrap">
+  <div id="loading" class="load">正在讀取團購資訊…</div>
 
-<section>
-  <h2>1・品項與口味</h2>
-  <div class="hd">
-    <label>品項名稱</label>
-    <input id="itemName" oninput="saveName()">
-  </div>
-  <div id="fvList" class="fv-list"></div>
-  <div class="row">
-    <div style="flex:2"><label>新增口味</label><input id="fvName"></div>
-    <div style="max-width:110px"><label>單價</label><input id="fvPrice" type="number" min="0" step="1" placeholder="0"></div>
-    <div style="max-width:90px;flex:0 0 auto"><button onclick="addFlavor()">新增</button></div>
-  </div>
-</section>
+  <!-- ===== 一般登記區 ===== -->
+  <div id="userArea" style="display:none">
+    <div id="closedBox" class="closed" style="display:none">本次團購已結單</div>
+    <div id="noteBox" class="note" style="display:none"></div>
 
-<section>
-  <h2>2・登打訂購</h2>
-  <div class="row">
-    <div style="flex:2"><label>購買人</label><input id="oName" placeholder="姓名"></div>
-    <div style="flex:2"><label>口味</label><select id="oFlavor"></select></div>
-    <div style="max-width:90px"><label>數量</label><input id="oQty" type="number" min="1" step="1" value="1"></div>
-  </div>
-  <div class="actions"><button onclick="addOrder()">加入訂單</button></div>
-</section>
+    <section>
+      <h2>我要登記</h2>
+      <div class="row">
+        <div style="flex:2"><label>購買人</label><input id="oName" placeholder="姓名"></div>
+        <div style="flex:2"><label>口味</label><select id="oFlavor"></select></div>
+        <div style="max-width:90px"><label>數量</label><input id="oQty" type="number" min="1" step="1" value="1"></div>
+      </div>
+      <div class="actions"><button id="btnAdd" onclick="addOrder()">送出登記</button></div>
+      <div id="msg" class="msg"></div>
+    </section>
 
-<section>
-  <h2>3・訂單明細</h2>
-  <div class="scroll">
-    <table>
-      <thead><tr><th>購買人</th><th>口味</th><th class="num">數量</th>
-        <th class="num">單價</th><th class="num">小計</th><th></th></tr></thead>
-      <tbody id="orderBody"></tbody>
-    </table>
+    <section>
+      <h2>我的訂單</h2>
+      <div style="margin-bottom:10px">
+        <label>查詢／切換姓名</label>
+        <div class="row">
+          <div style="flex:2"><input id="qName" placeholder="姓名"></div>
+          <div style="flex:0 0 auto"><button class="btn-line" onclick="loadMine()">查詢</button></div>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>口味</th><th class="num">數量</th><th class="num">單價</th>
+          <th class="num">小計</th><th></th></tr></thead>
+        <tbody id="mineBody"></tbody>
+      </table>
+      <div id="mineEmpty" class="empty">輸入姓名後查詢，這裡會顯示你自己的訂單。</div>
+      <div class="total"><span>我的應付金額</span><b id="myTotal">$0</b></div>
+    </section>
   </div>
-  <div id="orderEmpty" class="empty">還沒有訂單，從上方登打第一筆。</div>
-  <div class="total"><span>訂單總金額</span><b id="grand">$0</b></div>
-</section>
 
-<section>
-  <h2>4・彙總與匯出</h2>
-  <div id="summary"></div>
-  <div class="actions">
-    <button onclick="exportExcel()">匯出 Excel</button>
-    <button class="btn-line" onclick="clearAll()">清除全部資料</button>
+  <!-- ===== 管理區（需密碼） ===== -->
+  <div id="admArea" style="display:none">
+
+    <section>
+      <h2>1・品項與口味 <span class="adm-tag">主辦人</span></h2>
+      <div class="hd">
+        <label>品項名稱</label>
+        <input id="cItemName">
+        <div style="margin-top:10px">
+          <label>公告（登記者會看到，可留空）</label>
+          <textarea id="cNote"></textarea>
+        </div>
+        <div style="margin-top:10px" class="switch">
+          <input id="cOpen" type="checkbox" checked>
+          <span>開放登記（取消勾選＝結單）</span>
+        </div>
+      </div>
+      <div id="fvList" class="fv-list"></div>
+      <div class="row">
+        <div style="flex:2"><label>新增口味</label><input id="fvName"></div>
+        <div style="max-width:110px"><label>單價</label><input id="fvPrice" type="number" min="0" step="1"></div>
+        <div style="max-width:90px;flex:0 0 auto"><button onclick="addFlavor()">新增</button></div>
+      </div>
+      <div class="actions">
+        <button onclick="saveConfig()">儲存設定</button>
+        <button class="btn-line" onclick="adminReload()">重新讀取</button>
+      </div>
+      <div id="cfgMsg" class="msg"></div>
+    </section>
+
+    <section>
+      <h2>2・全部訂單</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>購買人</th><th>口味</th><th class="num">數量</th>
+            <th class="num">單價</th><th class="num">小計</th><th>登記時間</th><th></th></tr></thead>
+          <tbody id="allBody"></tbody>
+        </table>
+      </div>
+      <div id="allEmpty" class="empty">目前還沒有人登記。</div>
+      <div class="total"><span>訂單總金額</span><b id="grand">$0</b></div>
+    </section>
+
+    <section>
+      <h2>3・彙總與匯出</h2>
+      <div id="summary"></div>
+      <div class="actions">
+        <button onclick="exportExcel()">匯出 Excel</button>
+        <button class="btn-warn" onclick="clearOrders()">清空所有訂單</button>
+      </div>
+    </section>
+
   </div>
-</section>
+</div>
 
+<!-- 密碼視窗 -->
+<div class="mask" id="mask">
+  <div class="dlg">
+    <h3>主辦人管理</h3>
+    <p>輸入管理密碼以設定品項、查看全部訂單。</p>
+    <input id="pw" type="password">
+    <div class="actions">
+      <button onclick="login()">登入</button>
+      <button class="btn-line" onclick="closeGate()">取消</button>
+    </div>
+    <div id="gateMsg" class="msg"></div>
+  </div>
 </div>
 
 <script>
-const KEY='groupbuy_single_v1';
-let db={name:'',flavors:[],orders:[]};
+/* ====== 把這行換成你的 Apps Script 網頁應用程式網址（結尾 /exec） ====== */
+const API_URL = 'PASTE_YOUR_APPS_SCRIPT_URL_HERE';
 
-function load(){try{const r=localStorage.getItem(KEY);if(r)db=JSON.parse(r);}catch(e){}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(db));}catch(e){}}
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+let cfg={itemName:'',flavors:[],open:true,note:''};
+let mine=[], orders=[], curName='', PW='', isAdmin=false;
+
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>'$'+Number(n||0).toLocaleString('zh-TW');
+const priceOf=n=>{const f=cfg.flavors.find(x=>x.name===n);return f?Number(f.price)||0:0;};
+const fmtTime=t=>t?new Date(t).toLocaleString('zh-TW',
+  {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
 
+function say(id,text,type){
+  const m=document.getElementById(id);
+  m.className='msg '+type;m.textContent=text;
+  if(type==='ok')setTimeout(()=>{m.className='msg';},2500);
+}
 
-function saveName(){db.name=document.getElementById('itemName').value;save();}
+async function api(payload){
+  const r=await fetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(payload)
+  });
+  return r.json();
+}
+
+/* ---------- 啟動 ---------- */
+
+async function boot(){
+  if(API_URL.indexOf('PASTE_YOUR')===0){
+    document.getElementById('loading').textContent='尚未設定 API_URL，請先填入 Apps Script 網址。';
+    return;
+  }
+  const saved=localStorage.getItem('gb_name')||'';
+  try{
+    const d=await api({action:'form',name:saved});
+    if(!d.ok){document.getElementById('loading').textContent=d.error||'讀取失敗';return;}
+    cfg=d.config;
+    if(saved){curName=saved;mine=d.mine||[];
+      document.getElementById('oName').value=saved;
+      document.getElementById('qName').value=saved;}
+  }catch(e){
+    document.getElementById('loading').textContent='連線失敗，請確認網址與網路後重新整理。';
+    return;
+  }
+  document.getElementById('loading').style.display='none';
+  document.getElementById('userArea').style.display='block';
+  renderUser();
+
+  const sp=localStorage.getItem('gb_pw');
+  if(sp){ document.getElementById('pw').value=sp; login(true); }
+}
+
+/* ---------- 密碼視窗 ---------- */
+
+function openGate(){
+  if(isAdmin){ toggleAdmin(); return; }
+  document.getElementById('mask').classList.add('on');
+  document.getElementById('pw').focus();
+}
+function closeGate(){
+  document.getElementById('mask').classList.remove('on');
+  document.getElementById('gateMsg').className='msg';
+}
+
+async function login(silent){
+  const pw=document.getElementById('pw').value;
+  if(!pw){ if(!silent)say('gateMsg','請輸入密碼。','err'); return; }
+  let d;
+  try{ d=await api({action:'adminLoad',pw}); }
+  catch(e){ if(!silent)say('gateMsg','連線失敗。','err'); return; }
+  if(!d.ok){
+    localStorage.removeItem('gb_pw');
+    if(!silent)say('gateMsg',d.error||'登入失敗。','err');
+    return;
+  }
+  PW=pw;isAdmin=true;cfg=d.config;orders=d.orders||[];
+  localStorage.setItem('gb_pw',pw);
+  closeGate();
+  showAdmin();
+}
+
+function showAdmin(){
+  document.getElementById('userArea').style.display='none';
+  document.getElementById('admArea').style.display='block';
+  document.getElementById('pageTitle').textContent='團購統計';
+  document.getElementById('admBtn').textContent='回登記畫面';
+  renderAdmin();
+}
+
+function toggleAdmin(){
+  const showing=document.getElementById('admArea').style.display!=='none';
+  if(showing){
+    document.getElementById('admArea').style.display='none';
+    document.getElementById('userArea').style.display='block';
+    document.getElementById('pageTitle').textContent='團購登記';
+    document.getElementById('admBtn').textContent='管理畫面';
+    renderUser();
+  }else{
+    showAdmin();
+  }
+}
+
+function logout(){
+  localStorage.removeItem('gb_pw');
+  PW='';isAdmin=false;
+  document.getElementById('pw').value='';
+  document.getElementById('admArea').style.display='none';
+  document.getElementById('userArea').style.display='block';
+  document.getElementById('pageTitle').textContent='團購登記';
+  document.getElementById('admBtn').textContent='主辦人管理';
+  renderUser();
+}
+
+/* ---------- 一般登記 ---------- */
+
+function renderUser(){
+  document.getElementById('itemLabel').textContent=cfg.itemName||'（尚未設定品項）';
+  document.getElementById('closedBox').style.display=cfg.open?'none':'block';
+  const nb=document.getElementById('noteBox');
+  if(cfg.note){nb.style.display='block';nb.textContent=cfg.note;}else{nb.style.display='none';}
+
+  const sel=document.getElementById('oFlavor');
+  const cur=sel.value;
+  sel.innerHTML=cfg.flavors.length
+    ? cfg.flavors.map(f=>`<option value="${esc(f.name)}">${esc(f.name)}（${money(f.price)}）</option>`).join('')
+    : '<option value="">（主辦人尚未設定口味）</option>';
+  if(cfg.flavors.some(f=>f.name===cur))sel.value=cur;
+  document.getElementById('btnAdd').disabled=!cfg.open||!cfg.flavors.length;
+
+  let total=0;
+  document.getElementById('mineBody').innerHTML=mine.map(o=>{
+    const p=priceOf(o.flavor),sub=p*o.qty;total+=sub;
+    return `<tr>
+      <td>${esc(o.flavor)}</td>
+      <td class="num"><input type="number" min="1" step="1" value="${o.qty}" style="width:64px;padding:4px 6px"
+        ${cfg.open?'':'disabled'} onchange="changeQty('${o.id}',this.value)"></td>
+      <td class="num">${money(p)}</td><td class="num">${money(sub)}</td>
+      <td>${cfg.open?`<button class="btn-del" onclick="delMine('${o.id}')">刪除</button>`:''}</td>
+    </tr>`;
+  }).join('');
+  const me=document.getElementById('mineEmpty');
+  me.style.display=mine.length?'none':'block';
+  me.textContent=curName?`「${curName}」目前沒有訂單。`:'輸入姓名後查詢，這裡會顯示你自己的訂單。';
+  document.getElementById('myTotal').textContent=money(total);
+}
+
+async function addOrder(){
+  const name=document.getElementById('oName').value.trim();
+  const flavor=document.getElementById('oFlavor').value;
+  const qty=Math.floor(Number(document.getElementById('oQty').value)||0);
+  if(!name){say('msg','請輸入購買人姓名。','err');return;}
+  if(!flavor){say('msg','請選擇口味。','err');return;}
+  if(qty<1){say('msg','數量至少 1。','err');return;}
+
+  const btn=document.getElementById('btnAdd');
+  btn.disabled=true;btn.textContent='送出中…';
+  const d=await api({action:'add',name,flavor,qty});
+  btn.disabled=false;btn.textContent='送出登記';
+
+  if(!d.ok){say('msg',d.error||'送出失敗。','err');return;}
+  curName=name;mine=d.mine||[];
+  localStorage.setItem('gb_name',name);
+  document.getElementById('qName').value=name;
+  document.getElementById('oQty').value=1;
+  say('msg','已登記：'+flavor+' × '+qty,'ok');
+  renderUser();
+}
+
+async function loadMine(){
+  const name=document.getElementById('qName').value.trim();
+  if(!name){say('msg','請輸入要查詢的姓名。','err');return;}
+  const d=await api({action:'form',name});
+  if(!d.ok){say('msg',d.error||'查詢失敗。','err');return;}
+  cfg=d.config;curName=name;mine=d.mine||[];
+  localStorage.setItem('gb_name',name);
+  document.getElementById('oName').value=name;
+  renderUser();
+}
+
+async function changeQty(id,v){
+  const qty=Math.floor(Number(v)||0);
+  if(qty<1){say('msg','數量至少 1。','err');renderUser();return;}
+  const o=mine.find(x=>x.id===id);
+  const d=await api({action:'update',id,name:curName,flavor:o?o.flavor:'',qty});
+  if(!d.ok){say('msg',d.error||'修改失敗。','err');await loadMine();return;}
+  mine=d.mine||[];say('msg','數量已更新。','ok');renderUser();
+}
+
+async function delMine(id){
+  const o=mine.find(x=>x.id===id);
+  if(!confirm(`刪除「${o?o.flavor:''}」這筆訂單？`))return;
+  const d=await api({action:'delete',id,name:curName});
+  if(!d.ok){say('msg',d.error||'刪除失敗。','err');return;}
+  mine=d.mine||[];say('msg','已刪除。','ok');renderUser();
+}
+
+/* ---------- 管理 ---------- */
+
+async function adminReload(){
+  const d=await api({action:'adminLoad',pw:PW});
+  if(!d.ok){say('cfgMsg',d.error||'讀取失敗。','err');return;}
+  cfg=d.config;orders=d.orders||[];renderAdmin();
+  say('cfgMsg','已重新讀取。','ok');
+}
 
 function addFlavor(){
   const n=document.getElementById('fvName').value.trim();
   const p=Number(document.getElementById('fvPrice').value)||0;
-  if(!n){alert('請輸入口味名稱');return;}
-  if(db.flavors.some(f=>f.name===n)){alert('這個口味已經建立過了');return;}
-  db.flavors.push({id:uid(),name:n,price:p});
+  if(!n){say('cfgMsg','請輸入口味名稱。','err');return;}
+  if(cfg.flavors.some(f=>f.name===n)){say('cfgMsg','這個口味已經建立過了。','err');return;}
+  cfg.flavors.push({name:n,price:p});
   document.getElementById('fvName').value='';
   document.getElementById('fvPrice').value='';
-  save();render();
+  renderFlavors();
   document.getElementById('fvName').focus();
+  say('cfgMsg','已加入清單，記得按「儲存設定」。','ok');
 }
 
-function editPrice(id,v){
-  const f=db.flavors.find(x=>x.id===id);
-  f.price=Number(v)||0;save();render();
+function editPrice(i,v){
+  cfg.flavors[i].price=Number(v)||0;
+  renderAdmin();
+  say('cfgMsg','價格已改，記得按「儲存設定」。','ok');
 }
 
-function delFlavor(id){
-  const f=db.flavors.find(x=>x.id===id);
-  const used=db.orders.filter(o=>o.fvId===id).length;
-  if(!confirm(`刪除口味「${f.name}」${used?`，並移除相關 ${used} 筆訂單？`:'？'}`))return;
-  db.flavors=db.flavors.filter(x=>x.id!==id);
-  db.orders=db.orders.filter(o=>o.fvId!==id);
-  save();render();
+function delFlavor(i){
+  const f=cfg.flavors[i];
+  const used=orders.filter(o=>o.flavor===f.name).reduce((a,o)=>a+o.qty,0);
+  if(used){
+    if(!confirm(`「${f.name}」已經有人登記 ${used} 份。移除口味不會刪掉那些訂單，但單價會變成 0。仍要移除？`))return;
+  }else if(!confirm(`移除口味「${f.name}」？`))return;
+  cfg.flavors.splice(i,1);renderFlavors();
+  say('cfgMsg','已從清單移除，記得按「儲存設定」。','ok');
 }
 
-function addOrder(){
-  const name=document.getElementById('oName').value.trim();
-  const fvId=document.getElementById('oFlavor').value;
-  const qty=Math.floor(Number(document.getElementById('oQty').value)||0);
-  if(!name){alert('請輸入購買人姓名');return;}
-  if(!fvId){alert('請先建立口味');return;}
-  if(qty<1){alert('數量至少 1');return;}
-  db.orders.push({id:uid(),name,fvId,qty});
-  document.getElementById('oQty').value=1;
-  document.getElementById('oName').value='';
-  save();render();
-  document.getElementById('oName').focus();
+async function saveConfig(){
+  cfg.itemName=document.getElementById('cItemName').value;
+  cfg.note=document.getElementById('cNote').value;
+  cfg.open=document.getElementById('cOpen').checked;
+  const d=await api({action:'adminSaveConfig',pw:PW,
+    itemName:cfg.itemName,flavors:cfg.flavors,open:cfg.open,note:cfg.note});
+  if(!d.ok){say('cfgMsg',d.error||'儲存失敗。','err');return;}
+  cfg=d.config;orders=d.orders||orders;renderAdmin();
+  say('cfgMsg','設定已儲存，登記者重新整理後生效。','ok');
 }
 
-function delOrder(id){db.orders=db.orders.filter(o=>o.id!==id);save();render();}
-
-function clearAll(){
-  if(!confirm('確定清除品項、口味與全部訂單？此動作無法復原。'))return;
-  db={name:'',flavors:[],orders:[]};save();render();
+async function delOrder(id){
+  const o=orders.find(x=>x.id===id);
+  if(!confirm(`刪除「${o.name} - ${o.flavor} × ${o.qty}」這筆訂單？`))return;
+  const d=await api({action:'adminDelete',pw:PW,id});
+  if(!d.ok){say('cfgMsg',d.error||'刪除失敗。','err');return;}
+  orders=d.orders||[];renderAdmin();
 }
 
-function render(){
-  document.getElementById('itemName').value=db.name||'';
+async function clearOrders(){
+  if(!confirm('清空所有人的訂單？此動作無法復原。'))return;
+  if(!confirm('再確認一次：真的要全部刪除嗎？'))return;
+  const d=await api({action:'adminClearOrders',pw:PW});
+  if(!d.ok){say('cfgMsg',d.error||'清空失敗。','err');return;}
+  orders=d.orders||[];renderAdmin();
+}
 
-  document.getElementById('fvList').innerHTML=db.flavors.length?db.flavors.map(f=>`
+function renderFlavors(){
+  document.getElementById('fvList').innerHTML=cfg.flavors.length?cfg.flavors.map((f,i)=>`
     <div class="fv-row">
       <b>${esc(f.name)}</b>
       <input type="number" min="0" step="1" value="${f.price}" style="width:88px;padding:5px 8px"
-        onchange="editPrice('${f.id}',this.value)">
+        onchange="editPrice(${i},this.value)">
       <span style="color:var(--muted);font-size:13px">元</span>
-      <button class="btn-del" onclick="delFlavor('${f.id}')">刪除</button>
-    </div>`).join(''):'<div class="empty">先新增今天開放的口味與各自單價。</div>';
+      <button class="btn-del" onclick="delFlavor(${i})">移除</button>
+    </div>`).join(''):'<div class="empty">先新增這次開放的口味與各自單價。</div>';
+}
 
-  const cur=document.getElementById('oFlavor').value;
-  document.getElementById('oFlavor').innerHTML=
-    db.flavors.map(f=>`<option value="${f.id}">${esc(f.name)}（${money(f.price)}）</option>`).join('')
-    ||'<option value="">（尚無口味）</option>';
-  if(db.flavors.some(f=>f.id===cur))document.getElementById('oFlavor').value=cur;
+function renderAdmin(){
+  document.getElementById('itemLabel').textContent=cfg.itemName||'（尚未設定品項）';
+  document.getElementById('cItemName').value=cfg.itemName||'';
+  document.getElementById('cNote').value=cfg.note||'';
+  document.getElementById('cOpen').checked=cfg.open!==false;
+  renderFlavors();
 
   let grand=0;
-  document.getElementById('orderBody').innerHTML=db.orders.map(o=>{
-    const f=db.flavors.find(x=>x.id===o.fvId)||{name:'?',price:0};
-    const sub=f.price*o.qty;grand+=sub;
-    return `<tr><td>${esc(o.name)}</td><td>${esc(f.name)}</td><td class="num">${o.qty}</td>
-      <td class="num">${money(f.price)}</td><td class="num">${money(sub)}</td>
+  document.getElementById('allBody').innerHTML=orders.map(o=>{
+    const p=priceOf(o.flavor),sub=p*o.qty;grand+=sub;
+    return `<tr><td>${esc(o.name)}</td><td>${esc(o.flavor)}</td><td class="num">${o.qty}</td>
+      <td class="num">${money(p)}</td><td class="num">${money(sub)}</td>
+      <td style="font-size:12px;color:var(--muted)">${fmtTime(o.created)}</td>
       <td><button class="btn-del" onclick="delOrder('${o.id}')">×</button></td></tr>`;
   }).join('');
-  document.getElementById('orderEmpty').style.display=db.orders.length?'none':'block';
+  document.getElementById('allEmpty').style.display=orders.length?'none':'block';
   document.getElementById('grand').textContent=money(grand);
 
   const byFv={},byPerson={};
-  db.orders.forEach(o=>{
-    const f=db.flavors.find(x=>x.id===o.fvId)||{name:'?',price:0};
-    if(!byFv[f.name])byFv[f.name]={q:0,m:0};
-    byFv[f.name].q+=o.qty;byFv[f.name].m+=f.price*o.qty;
+  orders.forEach(o=>{
+    const p=priceOf(o.flavor);
+    if(!byFv[o.flavor])byFv[o.flavor]={q:0,m:0};
+    byFv[o.flavor].q+=o.qty;byFv[o.flavor].m+=p*o.qty;
     if(!byPerson[o.name])byPerson[o.name]={q:0,m:0};
-    byPerson[o.name].q+=o.qty;byPerson[o.name].m+=f.price*o.qty;
+    byPerson[o.name].q+=o.qty;byPerson[o.name].m+=p*o.qty;
   });
   const sec=(t,rows)=>rows.length?`<div style="margin-bottom:14px"><label>${t}</label>${rows.join('')}</div>`:'';
-  document.getElementById('summary').innerHTML=db.orders.length?
+  document.getElementById('summary').innerHTML=orders.length?
     sec('各口味數量（下單用）',Object.entries(byFv).map(([k,v])=>
       `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))+
     sec('每人應付金額',Object.entries(byPerson).map(([k,v])=>
-      `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))
-    :'<div class="empty">有訂單後這裡會自動彙總。</div>';
+      `<div class="sum-row"><span>${esc(k)}</span><span>${v.q} 份　${money(v.m)}</span></div>`))+
+    `<div style="margin-top:10px"><button class="btn-line" onclick="logout()">登出管理</button></div>`
+    :'<div class="empty">有訂單後這裡會自動彙總。</div>'+
+     `<div style="margin-top:10px"><button class="btn-line" onclick="logout()">登出管理</button></div>`;
 }
 
 function exportExcel(){
-  if(!db.orders.length){alert('沒有訂單可以匯出');return;}
-  const item=(db.name||'團購品項').trim();
+  if(!orders.length){alert('沒有訂單可以匯出');return;}
+  const item=(cfg.itemName||'團購品項').trim();
   const wb=XLSX.utils.book_new();
   const d=new Date();
   const ds=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
 
   const rows=[[item+'　訂購明細　'+d.toLocaleDateString('zh-TW')],[],
-              ['購買人','口味','數量','單價','小計']];
+              ['購買人','口味','數量','單價','小計','登記時間']];
   let g=0,tq=0;
-  db.orders.forEach(o=>{
-    const f=db.flavors.find(x=>x.id===o.fvId)||{name:'?',price:0};
-    const sub=f.price*o.qty;g+=sub;tq+=o.qty;
-    rows.push([o.name,f.name,o.qty,f.price,sub]);
+  orders.forEach(o=>{
+    const p=priceOf(o.flavor),sub=p*o.qty;g+=sub;tq+=o.qty;
+    rows.push([o.name,o.flavor,o.qty,p,sub,fmtTime(o.created)]);
   });
-  rows.push(['','總計',tq,'',g]);
+  rows.push(['','總計',tq,'',g,'']);
   const s1=XLSX.utils.aoa_to_sheet(rows);
-  s1['!cols']=[{wch:14},{wch:18},{wch:8},{wch:10},{wch:12}];
-  s1['!merges']=[{s:{r:0,c:0},e:{r:0,c:4}}];
+  s1['!cols']=[{wch:14},{wch:18},{wch:8},{wch:10},{wch:12},{wch:16}];
+  s1['!merges']=[{s:{r:0,c:0},e:{r:0,c:5}}];
   XLSX.utils.book_append_sheet(wb,s1,'訂購明細');
 
-  const p={};
-  db.orders.forEach(o=>{
-    const f=db.flavors.find(x=>x.id===o.fvId)||{price:0};
-    if(!p[o.name])p[o.name]={q:0,m:0};
-    p[o.name].q+=o.qty;p[o.name].m+=f.price*o.qty;
+  const p2={};
+  orders.forEach(o=>{
+    if(!p2[o.name])p2[o.name]={q:0,m:0};
+    p2[o.name].q+=o.qty;p2[o.name].m+=priceOf(o.flavor)*o.qty;
   });
   const r2=[['購買人','總數量','應付金額']];
-  Object.entries(p).forEach(([k,v])=>r2.push([k,v.q,v.m]));
+  Object.entries(p2).forEach(([k,v])=>r2.push([k,v.q,v.m]));
   r2.push(['總計',tq,g]);
   const s2=XLSX.utils.aoa_to_sheet(r2);
   s2['!cols']=[{wch:14},{wch:10},{wch:12}];
   XLSX.utils.book_append_sheet(wb,s2,'每人小計');
 
   const fvSum={};
-  db.orders.forEach(o=>{
-    const f=db.flavors.find(x=>x.id===o.fvId)||{name:'?',price:0};
-    fvSum[f.name]=(fvSum[f.name]||0)+o.qty;
-  });
+  orders.forEach(o=>{fvSum[o.flavor]=(fvSum[o.flavor]||0)+o.qty;});
   const r3=[['口味','單價','數量','金額']];
-  db.flavors.forEach(f=>{
+  cfg.flavors.forEach(f=>{
     const q=fvSum[f.name];
-    if(q)r3.push([f.name,f.price,q,f.price*q]);
+    if(q){r3.push([f.name,f.price,q,f.price*q]);delete fvSum[f.name];}
   });
+  Object.entries(fvSum).forEach(([k,q])=>r3.push([k+'（已移除）',0,q,0]));
   r3.push(['總計','',tq,g]);
   const s3=XLSX.utils.aoa_to_sheet(r3);
-  s3['!cols']=[{wch:18},{wch:10},{wch:8},{wch:12}];
+  s3['!cols']=[{wch:20},{wch:10},{wch:8},{wch:12}];
   XLSX.utils.book_append_sheet(wb,s3,'口味統計');
 
   XLSX.writeFile(wb,`${item}_團購統計_${ds}.xlsx`);
 }
 
+/* ---------- 鍵盤 ---------- */
+document.getElementById('oQty').addEventListener('keydown',e=>{if(e.key==='Enter')addOrder();});
+document.getElementById('qName').addEventListener('keydown',e=>{if(e.key==='Enter')loadMine();});
+document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
 document.getElementById('fvName').addEventListener('keydown',e=>{
   if(e.key==='Enter')document.getElementById('fvPrice').focus();});
 document.getElementById('fvPrice').addEventListener('keydown',e=>{if(e.key==='Enter')addFlavor();});
-['oName','oQty'].forEach(id=>document.getElementById(id)
-  .addEventListener('keydown',e=>{if(e.key==='Enter')addOrder();}));
+document.getElementById('mask').addEventListener('click',e=>{
+  if(e.target.id==='mask')closeGate();});
 
-load();render();
+boot();
 </script>
 </body>
 </html>
