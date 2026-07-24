@@ -104,6 +104,17 @@ body.admin .status-box{background:#faf3e3}
 .dot.off{background:#a8442a;box-shadow:0 0 0 3px rgba(168,68,42,.18)}
 .status-box button{padding:9px 16px;white-space:nowrap}
 .status-hint{font-size:13px;color:var(--muted);margin-top:5px;line-height:1.5}
+.danger{border-color:#e0b8a8;margin-top:28px}
+.danger h2{color:var(--warn)}
+.danger h2::after{background:#e8cfc4}
+.danger-note{margin:0 0 12px;font-size:13px;color:var(--muted);line-height:1.6}
+.danger-row{display:flex;align-items:center;gap:12px;padding:11px 12px;
+  border:1px solid #ecdcd4;border-radius:7px;margin-bottom:8px;background:#fdf8f6}
+.danger-row:last-child{margin-bottom:0}
+.danger-row>div{flex:1}
+.danger-row b{display:block;font-size:15px;font-weight:700}
+.danger-row span{display:block;font-size:13px;color:var(--muted);line-height:1.5;margin-top:1px}
+.danger-row button{white-space:nowrap;padding:9px 15px}
 
 /* ===== 管理模式：整頁換色（亮色琥珀系）===== */
 body.admin{--paper:#fdf6e8;--card:#fffdf7;--line:#e6d9bd;
@@ -229,7 +240,6 @@ body.admin .adm-banner{display:block}
       <div class="actions">
         <button onclick="saveConfig()">儲存設定</button>
         <button class="btn-line" onclick="adminReload()">重新讀取</button>
-        <button class="btn-line" style="color:var(--warn)" onclick="clearFlavors()">清空所有品項</button>
       </div>
       <div id="cfgMsg" class="msg"></div>
     </section>
@@ -252,7 +262,25 @@ body.admin .adm-banner{display:block}
       <div id="summary"></div>
       <div class="actions">
         <button onclick="exportExcel()">匯出 Excel</button>
-        <button class="btn-warn" onclick="clearOrders()">清空所有訂單</button>
+      </div>
+    </section>
+
+    <section class="danger">
+      <h2>4・重置區</h2>
+      <p class="danger-note">以下操作無法復原，<b>建議先按上面的「匯出 Excel」留底</b>。</p>
+      <div class="danger-row">
+        <div>
+          <b>清空所有訂單</b>
+          <span>刪除全部人的登記內容，品項與口味保留。用於開下一團。</span>
+        </div>
+        <button class="btn-warn" onclick="clearOrders()">清空訂單</button>
+      </div>
+      <div class="danger-row">
+        <div>
+          <b>清空所有品項</b>
+          <span>移除全部口味與價格設定，訂單不會被刪但單價會歸零。</span>
+        </div>
+        <button class="btn-warn" onclick="clearFlavors()">清空品項</button>
       </div>
     </section>
 
@@ -567,13 +595,13 @@ function delFlavor(i){
 function clearFlavors(){
   if(!cfg.flavors.length){say('cfgMsg','目前沒有品項可以清空。','err');return;}
   const n=cfg.flavors.length;
+  if(!confirm(`清空全部 ${n} 個口味與價格設定？`))return;
   if(orders.length){
-    if(!confirm(`清空全部 ${n} 個口味？\n\n目前已有 ${orders.length} 筆訂單，訂單不會被刪除，但單價會變成 0。建議先匯出 Excel 留底。`))return;
-  }else{
-    if(!confirm(`清空全部 ${n} 個口味？`))return;
+    if(!confirm(`再確認一次。\n\n目前已有 ${orders.length} 筆訂單，訂單不會被刪除，但單價會全部變成 0。\n\n建議先取消，按「匯出 Excel」留底再回來。確定要清空嗎？`))return;
   }
-  cfg.flavors=[];renderFlavors();
-  say('cfgMsg','品項已清空，記得按「儲存設定」才會生效。','ok');
+  cfg.flavors=[];renderAdmin();
+  say('cfgMsg',`已清空 ${n} 個品項，記得按上面的「儲存設定」才會真正生效。`,'ok');
+  document.getElementById('cfgMsg').scrollIntoView({behavior:'smooth',block:'center'});
 }
 
 async function toggleOpen(){
