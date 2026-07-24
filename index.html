@@ -65,10 +65,6 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .closed{background:#f7e9e4;color:var(--warn);padding:12px;border-radius:8px;
   font-weight:600;text-align:center;margin-top:16px}
 .load{text-align:center;padding:40px 0;color:var(--muted)}
-.switch{display:flex;align-items:center;gap:10px;padding:10px;background:#fdfcf9;
-  border:1px solid var(--line);border-radius:7px}
-.switch input{width:auto}
-.switch span{font-weight:600;font-size:14px}
 .mask{position:fixed;inset:0;background:rgba(28,26,23,.55);display:none;
   align-items:center;justify-content:center;padding:20px;z-index:50}
 .mask.on{display:flex}
@@ -98,6 +94,16 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .p-top span{color:var(--mark);font-weight:700;font-size:14px}
 .p-det{font-size:13px;color:var(--muted);margin-top:2px;line-height:1.5}
 body.admin .p-card{background:#faf3e3}
+.status-box{display:flex;align-items:center;gap:12px;padding:10px 12px;
+  background:#fdfcf9;border:1px solid var(--line);border-radius:7px}
+body.admin .status-box{background:#faf3e3}
+.status-now{flex:1;display:flex;align-items:center;gap:8px}
+.status-now b{font-size:15px;font-weight:700}
+.dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto}
+.dot.on{background:#2f8f5e;box-shadow:0 0 0 3px rgba(47,143,94,.18)}
+.dot.off{background:#a8442a;box-shadow:0 0 0 3px rgba(168,68,42,.18)}
+.status-box button{padding:9px 16px;white-space:nowrap}
+.status-hint{font-size:13px;color:var(--muted);margin-top:5px;line-height:1.5}
 
 /* ===== 管理模式：整頁換色（亮色琥珀系）===== */
 body.admin{--paper:#fdf6e8;--card:#fffdf7;--line:#e6d9bd;
@@ -107,7 +113,7 @@ body.admin header{background:#5c3a10;border-bottom:3px solid #d9a740}
 body.admin .hbtn{background:#d9a740;color:#3d2608;border-color:#d9a740}
 body.admin .hbtn:hover{filter:brightness(1.08)}
 body.admin th{background:#faf3e3}
-body.admin .fv-row,body.admin .switch{background:#faf3e3}
+body.admin .fv-row{background:#faf3e3}
 body.admin .total{background:#5c3a10;color:#f2d99b}
 body.admin .adm-tag{background:#8a5a1c}
 .adm-banner{display:none;background:#f7e3b0;color:#5c3a10;padding:9px 14px;
@@ -202,9 +208,16 @@ body.admin .adm-banner{display:block}
           <label>公告（登記者會看到，可留空）</label>
           <textarea id="cNote"></textarea>
         </div>
-        <div style="margin-top:10px" class="switch">
-          <input id="cOpen" type="checkbox" checked>
-          <span>開放登記（取消勾選＝結單）</span>
+        <div style="margin-top:12px">
+          <label>團購狀態</label>
+          <div class="status-box">
+            <div class="status-now">
+              <span class="dot" id="stDot"></span>
+              <b id="stText">—</b>
+            </div>
+            <button id="stBtn" onclick="toggleOpen()">—</button>
+          </div>
+          <div class="status-hint" id="stHint"></div>
         </div>
       </div>
       <div id="fvList" class="fv-list"></div>
@@ -563,10 +576,38 @@ function clearFlavors(){
   say('cfgMsg','品項已清空，記得按「儲存設定」才會生效。','ok');
 }
 
+async function toggleOpen(){
+  const closing=cfg.open!==false;
+  if(closing){
+    if(!confirm('關閉團購？\n\n關閉後同事無法再新增或修改訂單，但仍看得到自己已登記的內容。你隨時可以重新開放。'))return;
+  }
+  const btn=document.getElementById('stBtn');
+  btn.disabled=true;btn.textContent='處理中…';
+
+  cfg.itemName=document.getElementById('cItemName').value;
+  cfg.note=document.getElementById('cNote').value;
+  cfg.open=!closing;
+
+  let d;
+  try{
+    d=await api({action:'adminSaveConfig',pw:PW,
+      itemName:cfg.itemName,flavors:cfg.flavors,open:cfg.open,note:cfg.note});
+  }catch(e){
+    cfg.open=closing;btn.disabled=false;renderAdmin();
+    say('cfgMsg','連線失敗，狀態沒有變更。','err');return;
+  }
+  btn.disabled=false;
+  if(!d.ok){
+    cfg.open=closing;renderAdmin();
+    say('cfgMsg',d.error||'變更失敗。','err');return;
+  }
+  cfg=d.config;orders=d.orders||orders;renderAdmin();
+  say('cfgMsg',cfg.open?'團購已重新開放登記。':'團購已關閉，同事無法再新增或修改。','ok');
+}
+
 async function saveConfig(){
   cfg.itemName=document.getElementById('cItemName').value;
   cfg.note=document.getElementById('cNote').value;
-  cfg.open=document.getElementById('cOpen').checked;
   const d=await api({action:'adminSaveConfig',pw:PW,
     itemName:cfg.itemName,flavors:cfg.flavors,open:cfg.open,note:cfg.note});
   if(!d.ok){say('cfgMsg',d.error||'儲存失敗。','err');return;}
@@ -605,7 +646,14 @@ function renderAdmin(){
   document.getElementById('itemLabel').textContent=cfg.itemName||'（尚未設定品項）';
   document.getElementById('cItemName').value=cfg.itemName||'';
   document.getElementById('cNote').value=cfg.note||'';
-  document.getElementById('cOpen').checked=cfg.open!==false;
+  const isOpen=cfg.open!==false;
+  document.getElementById('stDot').className='dot '+(isOpen?'on':'off');
+  document.getElementById('stText').textContent=isOpen?'開放登記中':'已關閉';
+  document.getElementById('stBtn').textContent=isOpen?'關閉團購':'重新開放';
+  document.getElementById('stBtn').className=isOpen?'btn-warn':'';
+  document.getElementById('stHint').textContent=isOpen
+    ?'同事可以新增、修改、刪除自己的訂單。'
+    :'同事看得到自己已登記的訂單，但無法新增或修改。';
   renderFlavors();
 
   let grand=0;
