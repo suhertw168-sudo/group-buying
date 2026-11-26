@@ -110,7 +110,10 @@ body.admin .pay-tag{background:#fff;border:1px solid var(--mark)}
 .prod-info{padding:8px 9px;display:flex;flex-direction:column;gap:5px}
 .prod-name{font-weight:600;font-size:14px;line-height:1.35}
 .prod-price{color:var(--mark);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
-.prod-add{display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap}
+.prod-add{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:2px}
+.add-bar{margin-top:12px;position:sticky;bottom:10px;z-index:5}
+.add-bar button{width:100%;padding:13px;font-size:16px;
+  box-shadow:0 2px 10px rgba(47,111,94,.25)}
 .stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .stepper button{background:#f4f1ea;color:var(--ink);border:none;padding:0;width:26px;height:30px;
   font-size:16px;font-weight:700;cursor:pointer;border-radius:0}
@@ -214,12 +217,15 @@ body.admin .adm-banner{display:block}
     <section>
       <h2>我要登記</h2>
       <div style="margin-bottom:14px">
-        <label>購買人</label>
+        <label>訂購人</label>
         <input id="oName" placeholder="姓名">
       </div>
 
-      <label>選擇商品（點數量後按「加入清單」，可選多項）</label>
+      <label>選擇商品（直接填數量，可選多項，最後按「加入清單」）</label>
       <div id="prodGrid" class="prod-grid"></div>
+      <div id="addBar" class="add-bar" style="display:none">
+        <button id="btnAddAll" onclick="addAll()">加入清單</button>
+      </div>
 
       <div id="cartBox" style="display:none;margin-top:16px">
         <label>待送出清單</label>
@@ -231,7 +237,7 @@ body.admin .adm-banner{display:block}
         <div class="pay-sel">
           <label>付款方式（必選）</label>
           <div id="payBtns" class="pay-btns">
-            <button type="button" class="pay-btn" data-pay="Line Pay" onclick="pickPay(this)">Line Pay</button>
+            <button type="button" class="pay-btn" data-pay="Line Pay Money" onclick="pickPay(this)">Line Pay Money</button>
             <button type="button" class="pay-btn" data-pay="iPASS MONEY" onclick="pickPay(this)">iPASS MONEY</button>
             <button type="button" class="pay-btn" data-pay="匯款" onclick="pickPay(this)">匯款</button>
             <button type="button" class="pay-btn" data-pay="現金" onclick="pickPay(this)">現金</button>
@@ -248,7 +254,7 @@ body.admin .adm-banner{display:block}
         </div>
       </div>
 
-      <div id="cartEmpty" class="empty">在上面的商品填入數量，按「加入」可多項一起送出。</div>
+      <div id="cartEmpty" class="empty">在上面的商品填入數量，按「加入清單」。</div>
       <div id="msg" class="msg"></div>
     </section>
 
@@ -328,7 +334,7 @@ body.admin .adm-banner{display:block}
       <h2>2・全部訂單</h2>
       <div class="scroll">
         <table>
-          <thead><tr><th>購買人</th><th>口味</th><th class="num">數量</th>
+          <thead><tr><th>訂購人</th><th>口味</th><th class="num">數量</th>
             <th class="num">單價</th><th class="num">小計</th><th>登記時間</th><th></th></tr></thead>
           <tbody id="allBody"></tbody>
         </table>
@@ -525,11 +531,12 @@ function renderUser(){
                 onchange="normQty(${i})">
               <button type="button" onclick="bump(${i},1)">＋</button>
             </div>
-            <button class="btn-line prod-add-btn" onclick="addCard(${i})">加入</button>
           </div>
         </div>
       </div>`).join('');
   }
+  document.getElementById('addBar').style.display=
+    (cfg.flavors.length&&cfg.open)?'block':'none';
   renderCart();
 
   let total=0;
@@ -556,7 +563,7 @@ function renderCart(){
     box.style.display='none';
     emp.style.display='block';
     emp.textContent=cfg.open
-      ?'在上面的商品填入數量，按「加入」可多項一起送出。'
+      ?'在上面的商品填入數量，按「加入清單」。'
       :'本次團購已結單。';
     return;
   }
@@ -588,21 +595,20 @@ function normQty(i){
   el.value=Math.max(0,Math.floor(Number(el.value)||0));
 }
 
-function addCard(i){
-  const f=cfg.flavors[i];
-  if(!f)return;
-  const el=document.getElementById('q_'+i);
-  const qty=Math.floor(Number(el.value)||0);
-  if(qty<1){say('msg','請先填入數量。','err');return;}
-  const hit=cart.find(c=>c.flavor===f.name);
-  if(hit){
-    hit.qty+=qty;
-    say('msg',`「${f.name}」已累加，共 ${hit.qty} 份。`,'ok');
-  }else{
-    cart.push({flavor:f.name,qty});
-    say('msg',`已加入「${f.name}」× ${qty}`,'ok');
-  }
-  el.value=0;
+function addAll(){
+  let added=0;
+  cfg.flavors.forEach((f,i)=>{
+    const el=document.getElementById('q_'+i);
+    if(!el)return;
+    const qty=Math.floor(Number(el.value)||0);
+    if(qty<1)return;
+    const hit=cart.find(c=>c.flavor===f.name);
+    if(hit)hit.qty+=qty; else cart.push({flavor:f.name,qty});
+    el.value=0;
+    added++;
+  });
+  if(!added){say('msg','請先在商品上填入數量。','err');return;}
+  say('msg',`已加入 ${added} 項到清單。`,'ok');
   renderCart();
 }
 
@@ -633,7 +639,7 @@ function pickPay(btn){
 
 async function submitCart(){
   const name=document.getElementById('oName').value.trim();
-  if(!name){say('msg','請輸入購買人姓名。','err');return;}
+  if(!name){say('msg','請輸入訂購人姓名。','err');return;}
   if(!cart.length){say('msg','清單是空的。','err');return;}
   if(!payChoice){say('msg','請選擇付款方式。','err');return;}
   let last5='';
@@ -1134,7 +1140,7 @@ function exportExcel(){
 
   /* ===== 表1：訂購明細（依人分組，小計粗體加底線）===== */
   const rows=[[item+'　訂購明細　'+d.toLocaleDateString('zh-TW')],[],
-              ['購買人','口味','數量','單價','小計','登記時間']];
+              ['訂購人','口味','數量','單價','小計','登記時間']];
   const subRows=[];
   let g=0,tq=0;
   const grp={};
@@ -1181,7 +1187,7 @@ function exportExcel(){
     if(o.pay)p2[o.name].pay=o.pay;
     if(o.last5)p2[o.name].last5=o.last5;
   });
-  const r2=[['購買人','付款方式','匯款末五碼','總數量','應付金額','品項明細']];
+  const r2=[['訂購人','付款方式','匯款末五碼','總數量','應付金額','品項明細']];
   Object.entries(p2).forEach(([k,v])=>{
     const det=Object.entries(v.items).map(([f,q])=>f+' × '+q).join('、');
     r2.push([k,v.pay,v.pay==='匯款'?v.last5:'',v.q,v.m,det]);
