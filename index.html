@@ -191,7 +191,7 @@ body.admin .adm-banner{display:block}
     <div class="sub" id="itemLabel">載入中…</div>
   </div>
   <div class="grow"></div>
-  <button class="hbtn" id="admBtn" onclick="openGate()">主辦人管理</button>
+  <button class="hbtn" id="admBtn" onclick="openGate()">團長管理</button>
 </div></header>
 
 <div class="wrap">
@@ -250,10 +250,10 @@ body.admin .adm-banner{display:block}
 
   <!-- ===== 管理區（需密碼） ===== -->
   <div id="admArea" style="display:none">
-    <div class="adm-banner">主辦人管理模式・這裡的操作會影響所有人</div>
+    <div class="adm-banner">團長管理模式・這裡的操作會影響所有人</div>
 
     <section>
-      <h2>1・品項與口味 <span class="adm-tag">主辦人</span></h2>
+      <h2>1・品項與口味 <span class="adm-tag">團長</span></h2>
       <div class="hd">
         <label>品項名稱</label>
         <input id="cItemName">
@@ -295,7 +295,7 @@ body.admin .adm-banner{display:block}
         <input id="rowFile" type="file" accept="image/*" style="display:none" onchange="onRowImg(this)">
       </div>
       <div class="actions">
-        <button onclick="saveConfig()">儲存設定</button>
+        <button id="saveBtn" onclick="saveConfig()">儲存設定</button>
         <button class="btn-line" onclick="adminReload()">重新讀取</button>
       </div>
       <div id="cfgMsg" class="msg"></div>
@@ -347,11 +347,11 @@ body.admin .adm-banner{display:block}
 <!-- 密碼視窗 -->
 <div class="mask" id="mask">
   <div class="dlg">
-    <h3>主辦人管理</h3>
+    <h3>團長管理</h3>
     <p>輸入管理密碼以設定品項、查看全部訂單。</p>
     <input id="pw" type="password">
     <div class="actions">
-      <button onclick="login()">登入</button>
+      <button id="loginBtn" onclick="login()">登入</button>
       <button class="btn-line" onclick="closeGate()">取消</button>
     </div>
     <div id="gateMsg" class="msg"></div>
@@ -425,9 +425,16 @@ function closeGate(){
 async function login(){
   const pw=document.getElementById('pw').value;
   if(!pw){ say('gateMsg','請輸入密碼。','err'); return; }
+  const btn=document.getElementById('loginBtn');
+  if(btn){btn.disabled=true;btn.textContent='登入中…';}
+  say('gateMsg','登入中，請稍候…','ok');
   let d;
   try{ d=await api({action:'adminLoad',pw}); }
-  catch(e){ say('gateMsg','連線失敗。','err'); return; }
+  catch(e){
+    if(btn){btn.disabled=false;btn.textContent='登入';}
+    say('gateMsg','連線失敗。','err'); return;
+  }
+  if(btn){btn.disabled=false;btn.textContent='登入';}
   if(!d.ok){
     say('gateMsg',d.error||'登入失敗。','err');
     return;
@@ -456,7 +463,7 @@ function toggleAdmin(){
     document.getElementById('admArea').style.display='none';
     document.getElementById('userArea').style.display='block';
     document.getElementById('pageTitle').textContent='團購登記';
-    document.getElementById('admBtn').textContent='主辦人管理';
+    document.getElementById('admBtn').textContent='團長管理';
     window.scrollTo(0,0);
     renderUser();
   }else{
@@ -474,7 +481,7 @@ function renderUser(){
 
   const grid=document.getElementById('prodGrid');
   if(!cfg.flavors.length){
-    grid.innerHTML='<div class="empty">主辦人尚未設定商品。</div>';
+    grid.innerHTML='<div class="empty">團長尚未設定商品。</div>';
   }else if(!cfg.open){
     grid.innerHTML='<div class="empty">本次團購已結單，無法再登記。</div>';
   }else{
@@ -748,7 +755,6 @@ async function addFlavor(){
 
 function editPrice(i,v){
   cfg.flavors[i].price=Number(v)||0;
-  renderAdmin();
   say('cfgMsg','價格已改，記得按「儲存設定」。','ok');
 }
 
@@ -767,7 +773,7 @@ function editName(i,v){
     }
   }
   cfg.flavors[i].name=nv;
-  renderAdmin();
+  renderFlavors();
   say('cfgMsg',`名稱已改為「${nv}」，記得按「儲存設定」。`,'ok');
 }
 
@@ -776,7 +782,7 @@ function delFlavor(i){
   const used=orders.filter(o=>o.flavor===f.name).reduce((a,o)=>a+o.qty,0);
   if(used){
     if(!confirm(`「${f.name}」已經有人登記 ${used} 份。移除口味不會刪掉那些訂單，但單價會變成 0。仍要移除？`))return;
-  }else if(!confirm(`移除口味「${f.name}」？`))return;
+  }else if(!confirm(`移除品項「${f.name}」？`))return;
   cfg.flavors.splice(i,1);renderFlavors();
   say('cfgMsg','已從清單移除，記得按「儲存設定」。','ok');
 }
@@ -788,7 +794,7 @@ function clearFlavors(){
   if(orders.length){
     if(!confirm(`再確認一次。\n\n目前已有 ${orders.length} 筆訂單，訂單不會被刪除，但單價會全部變成 0。\n\n建議先取消，按「匯出 Excel」留底再回來。確定要清空嗎？`))return;
   }
-  cfg.flavors=[];renderAdmin();
+  cfg.flavors=[];renderFlavors();
   say('cfgMsg',`已清空 ${n} 個品項，記得按上面的「儲存設定」才會真正生效。`,'ok');
   document.getElementById('cfgMsg').scrollIntoView({behavior:'smooth',block:'center'});
 }
@@ -822,11 +828,24 @@ async function toggleOpen(){
   say('cfgMsg',cfg.open?'團購已重新開放登記。':'團購已關閉，同事無法再新增或修改。','ok');
 }
 
+let saving=false;
 async function saveConfig(){
+  if(saving)return;
+  saving=true;
+  const btn=document.getElementById('saveBtn');
+  if(btn){btn.disabled=true;btn.textContent='儲存中…';}
+  say('cfgMsg','儲存中，請稍候…','ok');
   cfg.itemName=document.getElementById('cItemName').value;
   cfg.note=document.getElementById('cNote').value;
-  const d=await api({action:'adminSaveConfig',pw:PW,
-    itemName:cfg.itemName,flavors:cfg.flavors,open:cfg.open,note:cfg.note});
+  let d;
+  try{
+    d=await api({action:'adminSaveConfig',pw:PW,
+      itemName:cfg.itemName,flavors:cfg.flavors,open:cfg.open,note:cfg.note});
+  }catch(e){
+    saving=false;if(btn){btn.disabled=false;btn.textContent='儲存設定';}
+    say('cfgMsg','連線失敗，尚未儲存，請再試一次。','err');return;
+  }
+  saving=false;if(btn){btn.disabled=false;btn.textContent='儲存設定';}
   if(!d.ok){say('cfgMsg',d.error||'儲存失敗。','err');return;}
   cfg=d.config;orders=d.orders||orders;renderAdmin();
   say('cfgMsg','設定已儲存，登記者重新整理後生效。','ok');
