@@ -51,6 +51,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .fv-row{display:flex;align-items:center;gap:8px;background:#fdfcf9;border:1px solid var(--line);
   border-radius:7px;padding:7px 10px}
 .fv-row b{flex:1;font-weight:600}
+.fv-name{flex:1;min-width:0;padding:5px 8px;font-weight:600}
 .total{display:flex;justify-content:space-between;align-items:baseline;padding:12px;
   background:var(--ink);color:var(--paper);border-radius:8px;margin-top:12px}
 .total b{font-size:20px;font-variant-numeric:tabular-nums}
@@ -751,6 +752,25 @@ function editPrice(i,v){
   say('cfgMsg','價格已改，記得按「儲存設定」。','ok');
 }
 
+function editName(i,v){
+  const nv=String(v).trim();
+  const old=cfg.flavors[i].name;
+  if(!nv){say('cfgMsg','名稱不能空白。','err');renderFlavors();return;}
+  if(nv===old)return;
+  if(cfg.flavors.some((f,j)=>j!==i&&f.name===nv)){
+    say('cfgMsg','已經有同名品項了。','err');renderFlavors();return;
+  }
+  const used=orders.filter(o=>o.flavor===old).reduce((a,o)=>a+o.qty,0);
+  if(used){
+    if(!confirm(`「${old}」已經有人登記 ${used} 份。\n\n改名後，那些舊訂單仍掛在「${old}」名下、會變成找不到單價（顯示 $0）。\n\n建議改名只用在還沒有人訂的品項。確定要改成「${nv}」嗎？`)){
+      renderFlavors();return;
+    }
+  }
+  cfg.flavors[i].name=nv;
+  renderAdmin();
+  say('cfgMsg',`名稱已改為「${nv}」，記得按「儲存設定」。`,'ok');
+}
+
 function delFlavor(i){
   const f=cfg.flavors[i];
   const used=orders.filter(o=>o.flavor===f.name).reduce((a,o)=>a+o.qty,0);
@@ -835,8 +855,9 @@ function renderFlavors(){
         ${f.img?`<img src="${esc(f.img)}" alt="" loading="lazy">`
                :`<span class="fv-noimg">＋圖</span>`}
       </div>
-      <b>${esc(f.name)}</b>
-      <input type="number" min="0" step="1" value="${f.price}" style="width:80px;padding:5px 8px"
+      <input class="fv-name" type="text" value="${esc(f.name)}"
+        onchange="editName(${i},this.value)">
+      <input type="number" min="0" step="1" value="${f.price}" style="width:72px;padding:5px 8px"
         onchange="editPrice(${i},this.value)">
       <span style="color:var(--muted);font-size:13px">元</span>
       <button class="btn-del" onclick="delFlavor(${i})">移除</button>
