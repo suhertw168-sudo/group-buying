@@ -85,6 +85,15 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   padding:10px 12px;margin-top:8px;background:var(--mark-soft);
   border-radius:7px;font-variant-numeric:tabular-nums}
 .cart-sum b{color:var(--mark);font-size:17px}
+.pay-sel{margin-top:12px}
+.pay-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.pay-btn{background:#fff;color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:9px 14px;font-size:14px;font-weight:600;cursor:pointer}
+.pay-btn:hover{border-color:var(--mark)}
+.pay-btn.sel{background:var(--mark);color:#fff;border-color:var(--mark)}
+.pay-tag{display:inline-block;margin-left:7px;background:var(--mark-soft);color:var(--mark);
+  font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;vertical-align:middle}
+body.admin .pay-tag{background:#fff;border:1px solid var(--mark)}
 .cart-thumb{width:34px;height:34px;border-radius:5px;object-fit:cover;flex:0 0 auto;
   border:1px solid var(--line);background:#f0ece2}
 .cart-thumb.noimg{background:#eee}
@@ -218,6 +227,20 @@ body.admin .adm-banner{display:block}
         <div class="cart-sum">
           <span>合計 <b id="cartQty">0</b> 份</span>
           <b id="cartTotal">$0</b>
+        </div>
+        <div class="pay-sel">
+          <label>付款方式（必選）</label>
+          <div id="payBtns" class="pay-btns">
+            <button type="button" class="pay-btn" data-pay="Line Pay" onclick="pickPay(this)">Line Pay</button>
+            <button type="button" class="pay-btn" data-pay="iPASS MONEY" onclick="pickPay(this)">iPASS MONEY</button>
+            <button type="button" class="pay-btn" data-pay="匯款" onclick="pickPay(this)">匯款</button>
+            <button type="button" class="pay-btn" data-pay="現金" onclick="pickPay(this)">現金</button>
+          </div>
+          <div id="last5Box" style="display:none;margin-top:10px">
+            <label>匯款帳號末五碼（必填）</label>
+            <input id="last5" type="text" inputmode="numeric" maxlength="5"
+              placeholder="輸入 5 位數字" oninput="this.value=this.value.replace(/\D/g,'').slice(0,5)">
+          </div>
         </div>
         <div class="actions">
           <button id="btnSend" onclick="submitCart()">送出訂單</button>
@@ -363,7 +386,7 @@ body.admin .adm-banner{display:block}
 const API_URL = 'https://script.google.com/macros/s/AKfycbztevorsTrHXNrqDVcicsW1idgBdwzzTQMEzEE4XYRhO63kBzjP2g6iNiB65sjvrUwxhw/exec';
 
 let cfg={itemName:'',flavors:[],open:true,note:''};
-let mine=[], orders=[], cart=[], curName='', PW='', isAdmin=false;
+let mine=[], orders=[], cart=[], curName='', PW='', isAdmin=false, payChoice='';
 
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>'$'+Number(n||0).toLocaleString('zh-TW');
@@ -594,16 +617,36 @@ function clearCart(){
   cart=[];renderCart();
 }
 
+function pickPay(btn){
+  payChoice=btn.getAttribute('data-pay');
+  document.querySelectorAll('#payBtns .pay-btn').forEach(b=>{
+    b.classList.toggle('sel',b===btn);
+  });
+  const box=document.getElementById('last5Box');
+  if(payChoice==='匯款'){
+    box.style.display='block';
+  }else{
+    box.style.display='none';
+    document.getElementById('last5').value='';
+  }
+}
+
 async function submitCart(){
   const name=document.getElementById('oName').value.trim();
   if(!name){say('msg','請輸入購買人姓名。','err');return;}
   if(!cart.length){say('msg','清單是空的。','err');return;}
+  if(!payChoice){say('msg','請選擇付款方式。','err');return;}
+  let last5='';
+  if(payChoice==='匯款'){
+    last5=document.getElementById('last5').value.trim();
+    if(!/^\d{5}$/.test(last5)){say('msg','匯款請填寫帳號末五碼（5 位數字）。','err');return;}
+  }
 
   const btn=document.getElementById('btnSend');
   btn.disabled=true;btn.textContent='送出中…';
   let d;
   try{
-    d=await api({action:'addBatch',name,items:cart});
+    d=await api({action:'addBatch',name,items:cart,pay:payChoice,last5});
   }catch(e){
     btn.disabled=false;btn.textContent='送出訂單';
     say('msg','連線失敗，訂單沒有送出，請再試一次。','err');
@@ -614,6 +657,10 @@ async function submitCart(){
   if(!d.ok){say('msg',d.error||'送出失敗，訂單沒有寫入。','err');return;}
   const n=d.added||cart.length;
   cart=[];
+  payChoice='';
+  document.querySelectorAll('#payBtns .pay-btn').forEach(b=>b.classList.remove('sel'));
+  document.getElementById('last5Box').style.display='none';
+  document.getElementById('last5').value='';
   curName=name;mine=d.mine||[];
   localStorage.setItem('gb_name',name);
   document.getElementById('qName').value=name;
@@ -906,10 +953,12 @@ function renderAdmin(){
   let html='';
   Object.keys(groups).forEach(nm=>{
     const list=groups[nm];
-    let pq=0,pm=0;
-    list.forEach(o=>{pq+=o.qty;pm+=priceOf(o.flavor)*o.qty;});
+    let pq=0,pm=0,pay='',last5='';
+    list.forEach(o=>{pq+=o.qty;pm+=priceOf(o.flavor)*o.qty;if(o.pay)pay=o.pay;if(o.last5)last5=o.last5;});
     grand+=pm;
-    html+=`<tr class="grp-head"><td colspan="4">${esc(nm)}</td>
+    const payLabel=pay+(pay==='匯款'&&last5?('・末五碼 '+last5):'');
+    const payTag=pay?`<span class="pay-tag">${esc(payLabel)}</span>`:'';
+    html+=`<tr class="grp-head"><td colspan="4">${esc(nm)}${payTag}</td>
       <td class="num">${pq} 份</td><td class="num" colspan="2">${money(pm)}</td></tr>`;
     list.forEach(o=>{
       const p=priceOf(o.flavor),sub=p*o.qty;
@@ -928,9 +977,11 @@ function renderAdmin(){
     const p=priceOf(o.flavor);
     if(!byFv[o.flavor])byFv[o.flavor]={q:0,m:0};
     byFv[o.flavor].q+=o.qty;byFv[o.flavor].m+=p*o.qty;
-    if(!byPerson[o.name])byPerson[o.name]={q:0,m:0,items:{}};
+    if(!byPerson[o.name])byPerson[o.name]={q:0,m:0,items:{},pay:'',last5:''};
     byPerson[o.name].q+=o.qty;byPerson[o.name].m+=p*o.qty;
     byPerson[o.name].items[o.flavor]=(byPerson[o.name].items[o.flavor]||0)+o.qty;
+    if(o.pay)byPerson[o.name].pay=o.pay;
+    if(o.last5)byPerson[o.name].last5=o.last5;
   });
 
   const fvRows=Object.entries(byFv).map(([k,v])=>
@@ -939,8 +990,10 @@ function renderAdmin(){
   const pRows=Object.entries(byPerson).map(([k,v])=>{
     const det=Object.entries(v.items)
       .map(([f,q])=>`${esc(f)} × ${q}`).join('、');
+    const payLabel=v.pay+(v.pay==='匯款'&&v.last5?('・末五碼 '+v.last5):'');
+    const payTag=v.pay?`<span class="pay-tag">${esc(payLabel)}</span>`:'';
     return `<div class="p-card">
-      <div class="p-top"><b>${esc(k)}</b>
+      <div class="p-top"><b>${esc(k)}${payTag}</b>
         <span>${v.q} 份　${money(v.m)}</span></div>
       <div class="p-det">${det}</div>
     </div>`;
@@ -1015,19 +1068,24 @@ async function shotSummary(){
   const byPerson={};
   orders.forEach(o=>{
     const p=priceOf(o.flavor);
-    if(!byPerson[o.name])byPerson[o.name]={q:0,m:0,items:{}};
+    if(!byPerson[o.name])byPerson[o.name]={q:0,m:0,items:{},pay:'',last5:''};
     byPerson[o.name].q+=o.qty;byPerson[o.name].m+=p*o.qty;
     byPerson[o.name].items[o.flavor]=(byPerson[o.name].items[o.flavor]||0)+o.qty;
+    if(o.pay)byPerson[o.name].pay=o.pay;
+    if(o.last5)byPerson[o.name].last5=o.last5;
   });
 
   let tq=0,tm=0;
   const cards=Object.entries(byPerson).map(([k,v])=>{
     tq+=v.q;tm+=v.m;
     const det=Object.entries(v.items).map(([f,q])=>`${esc(f)} × ${q}`).join('、');
+    const payLabel=v.pay?(v.pay+(v.pay==='匯款'&&v.last5?('・末五碼 '+v.last5):'')):'';
+    const payTag=payLabel?`<span style="font-size:12px;color:#2f6f5e;font-weight:700;
+      margin-left:7px">（${esc(payLabel)}）</span>`:'';
     return `<div style="background:#fdfcf9;border:1px solid #e2ddd2;border-radius:7px;
       padding:9px 12px;margin-bottom:7px">
       <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <span style="font-weight:700;font-size:16px;color:#1c1a17">${esc(k)}</span>
+        <span style="font-weight:700;font-size:16px;color:#1c1a17">${esc(k)}${payTag}</span>
         <span style="font-weight:700;font-size:15px;color:#2f6f5e;white-space:nowrap">
           ${v.q} 份　${money(v.m)}</span>
       </div>
@@ -1117,23 +1175,25 @@ function exportExcel(){
   /* ===== 表2：每人小計 ===== */
   const p2={};
   orders.forEach(o=>{
-    if(!p2[o.name])p2[o.name]={q:0,m:0,items:{}};
+    if(!p2[o.name])p2[o.name]={q:0,m:0,items:{},pay:'',last5:''};
     p2[o.name].q+=o.qty;p2[o.name].m+=priceOf(o.flavor)*o.qty;
     p2[o.name].items[o.flavor]=(p2[o.name].items[o.flavor]||0)+o.qty;
+    if(o.pay)p2[o.name].pay=o.pay;
+    if(o.last5)p2[o.name].last5=o.last5;
   });
-  const r2=[['購買人','總數量','應付金額','口味明細']];
+  const r2=[['購買人','付款方式','匯款末五碼','總數量','應付金額','品項明細']];
   Object.entries(p2).forEach(([k,v])=>{
     const det=Object.entries(v.items).map(([f,q])=>f+' × '+q).join('、');
-    r2.push([k,v.q,v.m,det]);
+    r2.push([k,v.pay,v.pay==='匯款'?v.last5:'',v.q,v.m,det]);
   });
-  r2.push(['總計',tq,g,'']);
+  r2.push(['總計','','',tq,g,'']);
   const s2=XLSX.utils.aoa_to_sheet(r2);
-  s2['!cols']=[{wch:14},{wch:10},{wch:13},{wch:46}];
+  s2['!cols']=[{wch:14},{wch:13},{wch:11},{wch:10},{wch:13},{wch:46}];
   s2['!freeze']={xSplit:0,ySplit:1};
-  styleRow(s2,0,4,XS.head);
-  for(let r=1;r<r2.length;r++)styleCell(s2,r,2,XS.money);
-  styleRow(s2,r2.length-1,4,XS.grand);
-  styleCell(s2,r2.length-1,2,XS.moneyG);
+  styleRow(s2,0,6,XS.head);
+  for(let r=1;r<r2.length;r++)styleCell(s2,r,4,XS.money);
+  styleRow(s2,r2.length-1,6,XS.grand);
+  styleCell(s2,r2.length-1,4,XS.moneyG);
   XLSX.utils.book_append_sheet(wb,s2,'每人小計');
 
   /* ===== 表3：口味統計 ===== */
