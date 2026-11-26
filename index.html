@@ -94,6 +94,15 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .pay-tag{display:inline-block;margin-left:7px;background:var(--mark-soft);color:var(--mark);
   font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;vertical-align:middle}
 body.admin .pay-tag{background:#fff;border:1px solid var(--mark)}
+.chk-btn{width:22px;height:22px;flex:0 0 auto;border:2px solid var(--mark);border-radius:5px;
+  background:#fff;color:#fff;font-size:14px;font-weight:900;line-height:1;cursor:pointer;
+  padding:0;margin-right:8px;vertical-align:middle;display:inline-flex;
+  align-items:center;justify-content:center}
+.chk-btn.on{background:var(--mark)}
+.chk-btn:hover{filter:brightness(1.05)}
+.grp-head.done td{opacity:.6}
+.p-card.done{opacity:.62}
+.p-card.done .chk-btn{opacity:1}
 .cart-thumb{width:34px;height:34px;border-radius:5px;object-fit:cover;flex:0 0 auto;
   border:1px solid var(--line);background:#f0ece2}
 .cart-thumb.noimg{background:#eee}
@@ -912,6 +921,37 @@ async function delOrder(id){
   orders=d.orders||[];renderAdmin();
 }
 
+// 某個人是否已查帳（按人，看該人任一筆的狀態）
+function checkedOf(name){
+  const o=orders.find(x=>x.name===name);
+  return o?!!o.checked:false;
+}
+
+let checkBusy=false;
+async function toggleCheck(name){
+  if(checkBusy)return;
+  checkBusy=true;
+  const now=!checkedOf(name);
+  // 先在本地更新，畫面立刻反應
+  orders.forEach(o=>{if(o.name===name)o.checked=now;});
+  renderAdmin();
+  let d;
+  try{
+    d=await api({action:'adminSetChecked',pw:PW,name,checked:now});
+  }catch(e){
+    orders.forEach(o=>{if(o.name===name)o.checked=!now;});
+    renderAdmin();checkBusy=false;
+    say('cfgMsg','連線失敗，查帳狀態沒有存到，請再試一次。','err');return;
+  }
+  checkBusy=false;
+  if(!d.ok){
+    orders.forEach(o=>{if(o.name===name)o.checked=!now;});
+    renderAdmin();
+    say('cfgMsg',d.error||'更新失敗。','err');return;
+  }
+  orders=d.orders||orders;renderAdmin();
+}
+
 async function clearOrders(){
   if(!confirm('清空所有人的訂單？此動作無法復原。'))return;
   if(!confirm('再確認一次：真的要全部刪除嗎？'))return;
@@ -964,7 +1004,10 @@ function renderAdmin(){
     grand+=pm;
     const payLabel=pay+(pay==='匯款'&&last5?('・末五碼 '+last5):'');
     const payTag=pay?`<span class="pay-tag">${esc(payLabel)}</span>`:'';
-    html+=`<tr class="grp-head"><td colspan="4">${esc(nm)}${payTag}</td>
+    const ck=checkedOf(nm);
+    const ckBtn=`<button class="chk-btn ${ck?'on':''}" title="${ck?'已查帳，點一下取消':'點一下標記已查帳'}"
+      onclick="toggleCheck('${esc(nm).replace(/'/g,"\\\\'")}')">${ck?'✓':''}</button>`;
+    html+=`<tr class="grp-head ${ck?'done':''}"><td colspan="4">${ckBtn}${esc(nm)}${payTag}</td>
       <td class="num">${pq} 份</td><td class="num" colspan="2">${money(pm)}</td></tr>`;
     list.forEach(o=>{
       const p=priceOf(o.flavor),sub=p*o.qty;
@@ -998,8 +1041,11 @@ function renderAdmin(){
       .map(([f,q])=>`${esc(f)} × ${q}`).join('、');
     const payLabel=v.pay+(v.pay==='匯款'&&v.last5?('・末五碼 '+v.last5):'');
     const payTag=v.pay?`<span class="pay-tag">${esc(payLabel)}</span>`:'';
-    return `<div class="p-card">
-      <div class="p-top"><b>${esc(k)}${payTag}</b>
+    const ck=checkedOf(k);
+    const ckBtn=`<button class="chk-btn ${ck?'on':''}" title="${ck?'已查帳，點一下取消':'點一下標記已查帳'}"
+      onclick="toggleCheck('${esc(k).replace(/'/g,"\\\\'")}')">${ck?'✓':''}</button>`;
+    return `<div class="p-card ${ck?'done':''}">
+      <div class="p-top"><b>${ckBtn}${esc(k)}${payTag}</b>
         <span>${v.q} 份　${money(v.m)}</span></div>
       <div class="p-det">${det}</div>
     </div>`;
@@ -1181,25 +1227,26 @@ function exportExcel(){
   /* ===== 表2：每人小計 ===== */
   const p2={};
   orders.forEach(o=>{
-    if(!p2[o.name])p2[o.name]={q:0,m:0,items:{},pay:'',last5:''};
+    if(!p2[o.name])p2[o.name]={q:0,m:0,items:{},pay:'',last5:'',checked:false};
     p2[o.name].q+=o.qty;p2[o.name].m+=priceOf(o.flavor)*o.qty;
     p2[o.name].items[o.flavor]=(p2[o.name].items[o.flavor]||0)+o.qty;
     if(o.pay)p2[o.name].pay=o.pay;
     if(o.last5)p2[o.name].last5=o.last5;
+    if(o.checked)p2[o.name].checked=true;
   });
-  const r2=[['訂購人','付款方式','匯款末五碼','總數量','應付金額','品項明細']];
+  const r2=[['已查帳','訂購人','付款方式','匯款末五碼','總數量','應付金額','品項明細']];
   Object.entries(p2).forEach(([k,v])=>{
     const det=Object.entries(v.items).map(([f,q])=>f+' × '+q).join('、');
-    r2.push([k,v.pay,v.pay==='匯款'?v.last5:'',v.q,v.m,det]);
+    r2.push([v.checked?'✓':'',k,v.pay,v.pay==='匯款'?v.last5:'',v.q,v.m,det]);
   });
-  r2.push(['總計','','',tq,g,'']);
+  r2.push(['','總計','','',tq,g,'']);
   const s2=XLSX.utils.aoa_to_sheet(r2);
-  s2['!cols']=[{wch:14},{wch:13},{wch:11},{wch:10},{wch:13},{wch:46}];
+  s2['!cols']=[{wch:8},{wch:14},{wch:13},{wch:11},{wch:10},{wch:13},{wch:46}];
   s2['!freeze']={xSplit:0,ySplit:1};
-  styleRow(s2,0,6,XS.head);
-  for(let r=1;r<r2.length;r++)styleCell(s2,r,4,XS.money);
-  styleRow(s2,r2.length-1,6,XS.grand);
-  styleCell(s2,r2.length-1,4,XS.moneyG);
+  styleRow(s2,0,7,XS.head);
+  for(let r=1;r<r2.length;r++)styleCell(s2,r,5,XS.money);
+  styleRow(s2,r2.length-1,7,XS.grand);
+  styleCell(s2,r2.length-1,5,XS.moneyG);
   XLSX.utils.book_append_sheet(wb,s2,'每人小計');
 
   /* ===== 表3：口味統計 ===== */
