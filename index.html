@@ -927,29 +927,41 @@ function checkedOf(name){
   return o?!!o.checked:false;
 }
 
-let checkBusy=false;
+// 只改這個人的那一顆方框，不重畫整頁
+function paintCheck(name,on){
+  orders.forEach(o=>{if(o.name===name)o.checked=on;});
+  document.querySelectorAll('.chk-btn').forEach(btn=>{
+    if(btn.getAttribute('data-ckname')!==name)return;
+    btn.classList.toggle('on',on);
+    btn.textContent=on?'✓':'';
+    const row=btn.closest('tr');
+    if(row)row.classList.toggle('done',on);
+  });
+}
+// 給 HTML 屬性用：跳脫雙引號與 & < >
+function cssAttr(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+  .replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+const checkBusy={};
 async function toggleCheck(name){
-  if(checkBusy)return;
-  checkBusy=true;
+  if(checkBusy[name])return;           // 同一人正在存，忽略重複點
+  checkBusy[name]=true;
   const now=!checkedOf(name);
-  // 先在本地更新，畫面立刻反應
-  orders.forEach(o=>{if(o.name===name)o.checked=now;});
-  renderAdmin();
+  paintCheck(name,now);                // 立刻反應，不重畫整頁
   let d;
   try{
     d=await api({action:'adminSetChecked',pw:PW,name,checked:now});
   }catch(e){
-    orders.forEach(o=>{if(o.name===name)o.checked=!now;});
-    renderAdmin();checkBusy=false;
+    paintCheck(name,!now);
+    delete checkBusy[name];
     say('cfgMsg','連線失敗，查帳狀態沒有存到，請再試一次。','err');return;
   }
-  checkBusy=false;
+  delete checkBusy[name];
   if(!d.ok){
-    orders.forEach(o=>{if(o.name===name)o.checked=!now;});
-    renderAdmin();
+    paintCheck(name,!now);
     say('cfgMsg',d.error||'更新失敗。','err');return;
   }
-  orders=d.orders||orders;renderAdmin();
+  if(d.orders)orders=d.orders;         // 用後端最新資料，但不重畫（避免閃動與頓）
 }
 
 async function clearOrders(){
@@ -1005,8 +1017,9 @@ function renderAdmin(){
     const payLabel=pay+(pay==='匯款'&&last5?('・末五碼 '+last5):'');
     const payTag=pay?`<span class="pay-tag">${esc(payLabel)}</span>`:'';
     const ck=checkedOf(nm);
-    const ckBtn=`<button class="chk-btn ${ck?'on':''}" title="${ck?'已查帳，點一下取消':'點一下標記已查帳'}"
-      onclick="toggleCheck('${esc(nm).replace(/'/g,"\\\\'")}')">${ck?'✓':''}</button>`;
+    const ckBtn=`<button class="chk-btn ${ck?'on':''}" data-ckname="${cssAttr(nm)}"
+      title="${ck?'已查帳，點一下取消':'點一下標記已查帳'}"
+      onclick="toggleCheck(this.getAttribute('data-ckname'))">${ck?'✓':''}</button>`;
     html+=`<tr class="grp-head ${ck?'done':''}"><td colspan="4">${ckBtn}${esc(nm)}${payTag}</td>
       <td class="num">${pq} 份</td><td class="num" colspan="2">${money(pm)}</td></tr>`;
     list.forEach(o=>{
