@@ -84,6 +84,45 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   padding:10px 12px;margin-top:8px;background:var(--mark-soft);
   border-radius:7px;font-variant-numeric:tabular-nums}
 .cart-sum b{color:var(--mark);font-size:17px}
+.cart-thumb{width:34px;height:34px;border-radius:5px;object-fit:cover;flex:0 0 auto;
+  border:1px solid var(--line);background:#f0ece2}
+.cart-thumb.noimg{background:#eee}
+/* ===== 商品圖片卡牆（登記頁）===== */
+.prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:10px;margin-top:6px}
+.prod-card{border:1px solid var(--line);border-radius:9px;overflow:hidden;
+  background:#fff;display:flex;flex-direction:column}
+.prod-img{aspect-ratio:1/1;background:#f4f1ea;display:flex;align-items:center;
+  justify-content:center;overflow:hidden}
+.prod-img img{width:100%;height:100%;object-fit:cover}
+.prod-img.noimg img{display:none}
+.prod-noimg{color:#b3a99a;font-size:13px}
+.prod-info{padding:8px 9px;display:flex;flex-direction:column;gap:5px}
+.prod-name{font-weight:600;font-size:14px;line-height:1.35}
+.prod-price{color:var(--mark);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
+.prod-add{display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap}
+.stepper{display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.stepper button{background:#f4f1ea;color:var(--ink);border:none;padding:0;width:26px;height:30px;
+  font-size:16px;font-weight:700;cursor:pointer;border-radius:0}
+.stepper button:hover{background:#e9e4d8}
+.stepper input{width:38px;height:30px;border:none;border-left:1px solid var(--line);
+  border-right:1px solid var(--line);text-align:center;padding:0;font-size:14px;
+  border-radius:0;font-variant-numeric:tabular-nums}
+.stepper input:focus{outline:1px solid var(--mark);outline-offset:-1px}
+.prod-add-btn{padding:6px 12px;font-size:13px;flex:1 0 auto}
+/* ===== 管理頁：品項縮圖 ===== */
+.fv-thumb{width:46px;height:46px;flex:0 0 auto;border-radius:6px;overflow:hidden;
+  border:1px solid var(--line);background:#f4f1ea;cursor:pointer;
+  display:flex;align-items:center;justify-content:center}
+.fv-thumb img{width:100%;height:100%;object-fit:cover}
+.fv-thumb:hover{border-color:var(--mark)}
+.fv-noimg{font-size:11px;color:var(--mark);font-weight:600}
+.add-item{margin-top:4px}
+.img-prev-wrap{display:flex;align-items:center;gap:6px}
+.img-prev{width:46px;height:46px;border-radius:6px;object-fit:cover;border:1px solid var(--line)}
+@media(max-width:400px){
+  .prod-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+}
 .grp-head td{background:var(--mark-soft);font-weight:700;
   border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
 .grp-head td:first-child{color:var(--mark)}
@@ -164,17 +203,15 @@ body.admin .adm-banner{display:block}
 
     <section>
       <h2>我要登記</h2>
-      <div style="margin-bottom:12px">
+      <div style="margin-bottom:14px">
         <label>購買人</label>
         <input id="oName" placeholder="姓名">
       </div>
-      <div class="row">
-        <div style="flex:2"><label>口味</label><select id="oFlavor"></select></div>
-        <div style="max-width:90px"><label>數量</label><input id="oQty" type="number" min="1" step="1" value="1"></div>
-        <div style="flex:0 0 auto"><button class="btn-line" id="btnCart" onclick="addToCart()">加入清單</button></div>
-      </div>
 
-      <div id="cartBox" style="display:none;margin-top:14px">
+      <label>選擇商品（點數量後按「加入清單」，可選多項）</label>
+      <div id="prodGrid" class="prod-grid"></div>
+
+      <div id="cartBox" style="display:none;margin-top:16px">
         <label>待送出清單</label>
         <div id="cartList" class="cart-list"></div>
         <div class="cart-sum">
@@ -187,7 +224,7 @@ body.admin .adm-banner{display:block}
         </div>
       </div>
 
-      <div id="cartEmpty" class="empty">先選口味和數量，按「加入清單」可以多筆一起送出。</div>
+      <div id="cartEmpty" class="empty">在上面的商品填入數量，按「加入」可多項一起送出。</div>
       <div id="msg" class="msg"></div>
     </section>
 
@@ -236,10 +273,25 @@ body.admin .adm-banner{display:block}
         </div>
       </div>
       <div id="fvList" class="fv-list"></div>
-      <div class="row">
-        <div style="flex:2"><label>新增口味</label><input id="fvName"></div>
-        <div style="max-width:110px"><label>單價</label><input id="fvPrice" type="number" min="0" step="1"></div>
-        <div style="max-width:90px;flex:0 0 auto"><button onclick="addFlavor()">新增</button></div>
+      <div class="add-item">
+        <div class="row">
+          <div style="flex:2"><label>新增品項名稱</label><input id="fvName"></div>
+          <div style="max-width:110px"><label>單價</label><input id="fvPrice" type="number" min="0" step="1"></div>
+        </div>
+        <div class="row" style="margin-top:8px;align-items:center">
+          <div style="flex:0 0 auto">
+            <label>商品圖片（可留到新增後再補）</label>
+            <button class="btn-line" type="button" onclick="pickNewImg()">選擇圖片</button>
+          </div>
+          <div id="newImgPrev" class="img-prev-wrap" style="display:none">
+            <img id="newImgThumb" class="img-prev" alt="">
+            <button class="btn-del" type="button" onclick="clearNewImg()">清除</button>
+          </div>
+          <div style="flex:1"></div>
+          <div style="flex:0 0 auto"><button onclick="addFlavor()">新增品項</button></div>
+        </div>
+        <input id="fvFile" type="file" accept="image/*" style="display:none" onchange="onNewImg(this)">
+        <input id="rowFile" type="file" accept="image/*" style="display:none" onchange="onRowImg(this)">
       </div>
       <div class="actions">
         <button onclick="saveConfig()">儲存設定</button>
@@ -419,16 +471,34 @@ function renderUser(){
   const nb=document.getElementById('noteBox');
   if(cfg.note){nb.style.display='block';nb.textContent=cfg.note;}else{nb.style.display='none';}
 
-  const sel=document.getElementById('oFlavor');
-  const cur=sel.value;
-  sel.innerHTML=cfg.flavors.length
-    ? cfg.flavors.map(f=>`<option value="${esc(f.name)}">${esc(f.name)}（${money(f.price)}）</option>`).join('')
-    : '<option value="">（主辦人尚未設定口味）</option>';
-  if(cfg.flavors.some(f=>f.name===cur))sel.value=cur;
-  const dis=!cfg.open||!cfg.flavors.length;
-  document.getElementById('btnCart').disabled=dis;
-  document.getElementById('oFlavor').disabled=dis;
-  document.getElementById('oQty').disabled=dis;
+  const grid=document.getElementById('prodGrid');
+  if(!cfg.flavors.length){
+    grid.innerHTML='<div class="empty">主辦人尚未設定商品。</div>';
+  }else if(!cfg.open){
+    grid.innerHTML='<div class="empty">本次團購已結單，無法再登記。</div>';
+  }else{
+    grid.innerHTML=cfg.flavors.map((f,i)=>`
+      <div class="prod-card">
+        <div class="prod-img">
+          ${f.img?`<img src="${esc(f.img)}" alt="${esc(f.name)}" loading="lazy"
+                     onerror="this.parentNode.classList.add('noimg')">`
+                 :`<span class="prod-noimg">無圖片</span>`}
+        </div>
+        <div class="prod-info">
+          <div class="prod-name">${esc(f.name)}</div>
+          <div class="prod-price">${money(f.price)}</div>
+          <div class="prod-add">
+            <div class="stepper">
+              <button type="button" onclick="bump(${i},-1)">−</button>
+              <input id="q_${i}" type="number" min="0" step="1" value="0" inputmode="numeric"
+                onchange="normQty(${i})">
+              <button type="button" onclick="bump(${i},1)">＋</button>
+            </div>
+            <button class="btn-line prod-add-btn" onclick="addCard(${i})">加入</button>
+          </div>
+        </div>
+      </div>`).join('');
+  }
   renderCart();
 
   let total=0;
@@ -455,7 +525,7 @@ function renderCart(){
     box.style.display='none';
     emp.style.display='block';
     emp.textContent=cfg.open
-      ?'先選口味和數量，按「加入清單」可以多筆一起送出。'
+      ?'在上面的商品填入數量，按「加入」可多項一起送出。'
       :'本次團購已結單。';
     return;
   }
@@ -464,7 +534,11 @@ function renderCart(){
   let q=0,m=0;
   document.getElementById('cartList').innerHTML=cart.map((c,i)=>{
     const p=priceOf(c.flavor);q+=c.qty;m+=p*c.qty;
+    const f=cfg.flavors.find(x=>x.name===c.flavor);
+    const thumb=f&&f.img?`<img class="cart-thumb" src="${esc(f.img)}" alt="" loading="lazy">`
+                        :`<span class="cart-thumb noimg"></span>`;
     return `<div class="cart-row">
+      ${thumb}
       <b>${esc(c.flavor)}</b>
       <em>${money(p)} × ${c.qty}　=　${money(p*c.qty)}</em>
       <button class="btn-del" onclick="removeCart(${i})">移除</button>
@@ -474,20 +548,30 @@ function renderCart(){
   document.getElementById('cartTotal').textContent=money(m);
 }
 
-function addToCart(){
-  const flavor=document.getElementById('oFlavor').value;
-  const qty=Math.floor(Number(document.getElementById('oQty').value)||0);
-  if(!flavor){say('msg','請選擇口味。','err');return;}
-  if(qty<1){say('msg','數量至少 1。','err');return;}
-  const hit=cart.find(c=>c.flavor===flavor);
+function bump(i,d){
+  const el=document.getElementById('q_'+i);
+  el.value=Math.max(0,(Math.floor(Number(el.value)||0))+d);
+}
+function normQty(i){
+  const el=document.getElementById('q_'+i);
+  el.value=Math.max(0,Math.floor(Number(el.value)||0));
+}
+
+function addCard(i){
+  const f=cfg.flavors[i];
+  if(!f)return;
+  const el=document.getElementById('q_'+i);
+  const qty=Math.floor(Number(el.value)||0);
+  if(qty<1){say('msg','請先填入數量。','err');return;}
+  const hit=cart.find(c=>c.flavor===f.name);
   if(hit){
     hit.qty+=qty;
-    say('msg',`「${flavor}」已合併，現在共 ${hit.qty} 份。`,'ok');
+    say('msg',`「${f.name}」已累加，共 ${hit.qty} 份。`,'ok');
   }else{
-    cart.push({flavor,qty});
-    say('msg',`已加入「${flavor}」× ${qty}`,'ok');
+    cart.push({flavor:f.name,qty});
+    say('msg',`已加入「${f.name}」× ${qty}`,'ok');
   }
-  document.getElementById('oQty').value=1;
+  el.value=0;
   renderCart();
 }
 
@@ -567,14 +651,95 @@ async function adminReload(){
   say('cfgMsg','已重新讀取。','ok');
 }
 
-function addFlavor(){
+/* ---------- 圖片處理 ---------- */
+let newImgData=null;          // 新增品項時暫存的圖片（dataURL）
+let rowImgTarget=-1;          // 目前要替哪一列的品項換圖
+
+// 把使用者選的檔案縮小後轉成 dataURL，避免原圖太大拖慢上傳
+function fileToDataUrl(file,maxW){
+  return new Promise((resolve,reject)=>{
+    const rd=new FileReader();
+    rd.onerror=()=>reject('讀取檔案失敗');
+    rd.onload=()=>{
+      const img=new Image();
+      img.onerror=()=>reject('圖片無法解析');
+      img.onload=()=>{
+        const scale=Math.min(1,maxW/img.width);
+        const w=Math.round(img.width*scale),h=Math.round(img.height*scale);
+        const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+        cv.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(cv.toDataURL('image/jpeg',0.82));
+      };
+      img.src=rd.result;
+    };
+    rd.readAsDataURL(file);
+  });
+}
+
+async function uploadImg(dataUrl,nameHint){
+  const d=await api({action:'adminUploadImage',pw:PW,data:dataUrl,nameHint:nameHint||''});
+  if(!d.ok)throw (d.error||'上傳失敗');
+  return d.url;
+}
+
+function pickNewImg(){document.getElementById('fvFile').click();}
+async function onNewImg(inp){
+  const f=inp.files[0];inp.value='';
+  if(!f)return;
+  try{
+    newImgData=await fileToDataUrl(f,800);
+    document.getElementById('newImgThumb').src=newImgData;
+    document.getElementById('newImgPrev').style.display='flex';
+  }catch(e){say('cfgMsg','圖片讀取失敗：'+e,'err');}
+}
+function clearNewImg(){
+  newImgData=null;
+  document.getElementById('newImgPrev').style.display='none';
+  document.getElementById('newImgThumb').src='';
+}
+
+function pickRowImg(i){
+  rowImgTarget=i;
+  document.getElementById('rowFile').click();
+}
+async function onRowImg(inp){
+  const f=inp.files[0];inp.value='';
+  const i=rowImgTarget;rowImgTarget=-1;
+  if(!f||i<0||!cfg.flavors[i])return;
+  const name=cfg.flavors[i].name;
+  say('cfgMsg',`「${name}」圖片上傳中…`,'ok');
+  try{
+    const dataUrl=await fileToDataUrl(f,800);
+    const url=await uploadImg(dataUrl,name);
+    cfg.flavors[i].img=url;
+    renderFlavors();
+    say('cfgMsg',`「${name}」圖片已上傳，記得按「儲存設定」。`,'ok');
+  }catch(e){say('cfgMsg','圖片上傳失敗：'+e,'err');}
+}
+
+async function addFlavor(){
   const n=document.getElementById('fvName').value.trim();
   const p=Number(document.getElementById('fvPrice').value)||0;
-  if(!n){say('cfgMsg','請輸入口味名稱。','err');return;}
-  if(cfg.flavors.some(f=>f.name===n)){say('cfgMsg','這個口味已經建立過了。','err');return;}
-  cfg.flavors.push({name:n,price:p});
+  if(!n){say('cfgMsg','請輸入品項名稱。','err');return;}
+  if(cfg.flavors.some(f=>f.name===n)){say('cfgMsg','這個品項已經建立過了。','err');return;}
+
+  const item={name:n,price:p,img:''};
+  if(newImgData){
+    const btns=document.querySelectorAll('.add-item button');
+    btns.forEach(b=>b.disabled=true);
+    say('cfgMsg','圖片上傳中…','ok');
+    try{
+      item.img=await uploadImg(newImgData,n);
+    }catch(e){
+      btns.forEach(b=>b.disabled=false);
+      say('cfgMsg','圖片上傳失敗，品項尚未新增：'+e,'err');return;
+    }
+    btns.forEach(b=>b.disabled=false);
+  }
+  cfg.flavors.push(item);
   document.getElementById('fvName').value='';
   document.getElementById('fvPrice').value='';
+  clearNewImg();
   renderFlavors();
   document.getElementById('fvName').focus();
   say('cfgMsg','已加入清單，記得按「儲存設定」。','ok');
@@ -666,12 +831,16 @@ async function clearOrders(){
 function renderFlavors(){
   document.getElementById('fvList').innerHTML=cfg.flavors.length?cfg.flavors.map((f,i)=>`
     <div class="fv-row">
+      <div class="fv-thumb" onclick="pickRowImg(${i})" title="點擊上傳／更換圖片">
+        ${f.img?`<img src="${esc(f.img)}" alt="" loading="lazy">`
+               :`<span class="fv-noimg">＋圖</span>`}
+      </div>
       <b>${esc(f.name)}</b>
-      <input type="number" min="0" step="1" value="${f.price}" style="width:88px;padding:5px 8px"
+      <input type="number" min="0" step="1" value="${f.price}" style="width:80px;padding:5px 8px"
         onchange="editPrice(${i},this.value)">
       <span style="color:var(--muted);font-size:13px">元</span>
       <button class="btn-del" onclick="delFlavor(${i})">移除</button>
-    </div>`).join(''):'<div class="empty">先新增這次開放的口味與各自單價。</div>';
+    </div>`).join(''):'<div class="empty">先新增這次開放的品項與各自單價。</div>';
 }
 
 function renderAdmin(){
@@ -953,7 +1122,6 @@ function exportExcel(){
 }
 
 /* ---------- 鍵盤 ---------- */
-document.getElementById('oQty').addEventListener('keydown',e=>{if(e.key==='Enter')addToCart();});
 document.getElementById('qName').addEventListener('keydown',e=>{if(e.key==='Enter')loadMine();});
 document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
 document.getElementById('fvName').addEventListener('keydown',e=>{
