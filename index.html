@@ -40,6 +40,9 @@ button:disabled{opacity:.5;cursor:default}
 .btn-line{background:#fff;color:var(--ink);border:1px solid var(--line)}
 .btn-warn{background:var(--warn)}
 .btn-del{background:none;color:var(--warn);padding:4px 8px;font-size:13px}
+.btn-delperson{background:var(--warn);color:#fff;border:none;border-radius:6px;
+  padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-delperson:hover{filter:brightness(1.08)}
 .actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{padding:8px 6px;text-align:left;border-bottom:1px solid var(--line)}
@@ -348,7 +351,7 @@ body.admin .adm-banner{display:block}
       <h2>2・全部訂單</h2>
       <div class="scroll">
         <table>
-          <thead><tr><th>訂購人</th><th>口味</th><th class="num">數量</th>
+          <thead><tr><th>訂購人</th><th>品項</th><th class="num">數量</th>
             <th class="num">單價</th><th class="num">小計</th><th>登記時間</th><th></th></tr></thead>
           <tbody id="allBody"></tbody>
         </table>
@@ -910,6 +913,17 @@ async function delOrder(id){
   orders=d.orders||[];renderAdmin();
 }
 
+async function delPerson(name){
+  const list=orders.filter(o=>o.name===name);
+  if(!list.length)return;
+  const q=list.reduce((a,o)=>a+o.qty,0);
+  if(!confirm(`刪除「${name}」的全部訂單（共 ${list.length} 筆、${q} 份）？\n\n此動作無法復原。`))return;
+  const d=await api({action:'adminDeletePerson',pw:PW,name});
+  if(!d.ok){say('cfgMsg',d.error||'刪除失敗。','err');return;}
+  orders=d.orders||[];renderAdmin();
+  say('cfgMsg',`已刪除「${name}」的全部訂單。`,'ok');
+}
+
 // 某個人是否已查帳（按人，看該人任一筆的狀態）
 function checkedOf(name){
   const o=orders.find(x=>x.name===name);
@@ -987,8 +1001,8 @@ function renderAdmin(){
   document.getElementById('stBtn').textContent=isOpen?'關閉團購':'重新開放';
   document.getElementById('stBtn').className=isOpen?'btn-warn':'';
   document.getElementById('stHint').textContent=isOpen
-    ?'同事可以新增、修改、刪除自己的訂單。'
-    :'同事看得到自己已登記的訂單，但無法新增或修改。';
+    ?'同事可以登記訂單；送出後需由團長修改或刪除。'
+    :'同事看得到自己已登記的訂單，但無法再新增。';
   renderFlavors();
 
   let grand=0;
@@ -1010,7 +1024,9 @@ function renderAdmin(){
       title="${ck?'已查帳，點一下取消':'點一下標記已查帳'}"
       onclick="toggleCheck(this.getAttribute('data-ckname'))">${ck?'✓':''}</button>`;
     html+=`<tr class="grp-head ${ck?'done':''}"><td colspan="4">${ckBtn}${esc(nm)}${payTag}</td>
-      <td class="num">${pq} 份</td><td class="num" colspan="2">${money(pm)}</td></tr>`;
+      <td class="num">${pq} 份</td><td class="num">${money(pm)}</td>
+      <td class="num"><button class="btn-delperson" data-pname="${cssAttr(nm)}"
+        onclick="delPerson(this.getAttribute('data-pname'))">刪除此人</button></td></tr>`;
     list.forEach(o=>{
       const p=priceOf(o.flavor),sub=p*o.qty;
       html+=`<tr><td></td><td>${esc(o.flavor)}</td><td class="num">${o.qty}</td>
