@@ -55,6 +55,8 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 .total{display:flex;justify-content:space-between;align-items:baseline;padding:12px;
   background:var(--ink);color:var(--paper);border-radius:8px;margin-top:12px}
 .total b{font-size:20px;font-variant-numeric:tabular-nums}
+.mine-note{background:#fdf8f0;border-left:3px solid #d9a740;color:#7a5a1a;
+  padding:9px 12px;border-radius:0 7px 7px 0;font-size:13px;line-height:1.6;margin-top:10px}
 .sum-row{display:flex;justify-content:space-between;padding:6px 0;
   border-bottom:1px dashed var(--line);font-variant-numeric:tabular-nums}
 .sum-row:last-child{border:none}
@@ -277,11 +279,14 @@ body.admin .adm-banner{display:block}
         </div>
       </div>
       <table>
-        <thead><tr><th>口味</th><th class="num">數量</th><th class="num">單價</th>
-          <th class="num">小計</th><th></th></tr></thead>
+        <thead><tr><th>品項</th><th class="num">數量</th><th class="num">單價</th>
+          <th class="num">小計</th></tr></thead>
         <tbody id="mineBody"></tbody>
       </table>
       <div id="mineEmpty" class="empty">輸入姓名後查詢，這裡會顯示你自己的訂單。</div>
+      <div id="myNote" class="mine-note" style="display:none">
+        訂單已送出，無法自行修改。如需更改或取消，請聯絡團長。
+      </div>
       <div class="total"><span>我的應付金額</span><b id="myTotal">$0</b></div>
     </section>
   </div>
@@ -553,15 +558,14 @@ function renderUser(){
     const p=priceOf(o.flavor),sub=p*o.qty;total+=sub;
     return `<tr>
       <td>${esc(o.flavor)}</td>
-      <td class="num"><input type="number" min="1" step="1" value="${o.qty}" style="width:64px;padding:4px 6px"
-        ${cfg.open?'':'disabled'} onchange="changeQty('${o.id}',this.value)"></td>
+      <td class="num">${o.qty}</td>
       <td class="num">${money(p)}</td><td class="num">${money(sub)}</td>
-      <td>${cfg.open?`<button class="btn-del" onclick="delMine('${o.id}')">刪除</button>`:''}</td>
     </tr>`;
   }).join('');
   const me=document.getElementById('mineEmpty');
   me.style.display=mine.length?'none':'block';
   me.textContent=curName?`「${curName}」目前沒有訂單。`:'輸入姓名後查詢，這裡會顯示你自己的訂單。';
+  document.getElementById('myNote').style.display=mine.length?'block':'none';
   document.getElementById('myTotal').textContent=money(total);
 }
 
@@ -695,22 +699,7 @@ async function loadMine(){
   renderUser();
 }
 
-async function changeQty(id,v){
-  const qty=Math.floor(Number(v)||0);
-  if(qty<1){say('msg','數量至少 1。','err');renderUser();return;}
-  const o=mine.find(x=>x.id===id);
-  const d=await api({action:'update',id,name:curName,flavor:o?o.flavor:'',qty});
-  if(!d.ok){say('msg',d.error||'修改失敗。','err');await loadMine();return;}
-  mine=d.mine||[];say('msg','數量已更新。','ok');renderUser();
-}
-
-async function delMine(id){
-  const o=mine.find(x=>x.id===id);
-  if(!confirm(`刪除「${o?o.flavor:''}」這筆訂單？`))return;
-  const d=await api({action:'delete',id,name:curName});
-  if(!d.ok){say('msg',d.error||'刪除失敗。','err');return;}
-  mine=d.mine||[];say('msg','已刪除。','ok');renderUser();
-}
+/* 訂單送出後，同事端不可自行修改或刪除；要改請找團長 */
 
 /* ---------- 管理 ---------- */
 
